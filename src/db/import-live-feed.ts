@@ -61,16 +61,28 @@ export async function importLiveFeed(): Promise<number> {
   for (const item of data) {
     const timeDisplay = `${formatTime12(item.start)} – ${formatTime12(item.end)}`;
     
-    // Parse date
-    const dateStr = item.date || '2026-09-05';
+    // Dynamic Date Calculation relative to current Asia/Manila time
+    const todayManila = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
+    const tomorrowDate = new Date();
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+    const tomorrowManila = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(tomorrowDate);
+
+    // If feed date matches today or tomorrow or has date, use it; otherwise assign dynamically
+    let dateStr = item.date || todayManila;
+    // Map initial demo dates if needed to keep data fresh
+    if (item.date === '2026-09-05') dateStr = todayManila;
+    if (item.date === '2026-09-06') dateStr = tomorrowManila;
+
     let dateLabel = dateStr;
     try {
       const d = new Date(dateStr + 'T00:00:00');
-      dateLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    } catch {}
-
-    if (dateStr === '2026-09-05') dateLabel = 'Today (Sep 5)';
-    else if (dateStr === '2026-09-06') dateLabel = 'Tomorrow (Sep 6)';
+      const formatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      if (dateStr === todayManila) dateLabel = `Today (${formatted})`;
+      else if (dateStr === tomorrowManila) dateLabel = `Tomorrow (${formatted})`;
+      else dateLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      dateLabel = dateStr;
+    }
 
     // City determination
     let city = 'Cebu City';

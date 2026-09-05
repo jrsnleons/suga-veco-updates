@@ -1,7 +1,24 @@
 import { launchStealthBrowser } from './browser';
 import { parsePostText, ParsedRawPost } from '@/parser/text-parser';
 import { linkAndPersistInterruption } from '@/parser/linker';
-import { logScrapeRun } from '@/db';
+import { logScrapeRun, pruneOldScrapeLogs } from '@/db';
+
+async function dispatchWebhookAlert(title: string, message: string): Promise<void> {
+  const webhookUrl = process.env.SCRAPER_WEBHOOK_URL;
+  if (!webhookUrl) return;
+  try {
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: `⚡ **SUGA Scraper Alert**: ${title}\n${message}`,
+        text: `⚡ SUGA Scraper Alert: ${title} - ${message}`,
+      }),
+    });
+  } catch (err) {
+    console.warn('[Scraper] Webhook alert notification notice:', err);
+  }
+}
 
 export async function runScrape(): Promise<{ found: number; newAdvisories: number }> {
   const startTime = Date.now();
@@ -94,7 +111,7 @@ export async function runScrape(): Promise<{ found: number; newAdvisories: numbe
         const permalinkEl = art.querySelector('a[href*="/visayanelectriccompany/posts/pfbid"], a[href*="/visayanelectriccompany/photos/"], a[href*="/photo/"]') as HTMLAnchorElement | null;
         if (!permalinkEl) continue;
 
-        let cleanUrl = permalinkEl.href.split('?')[0];
+        const cleanUrl = permalinkEl.href.split('?')[0];
         if (cleanUrl.includes('comment_id=')) continue; // ignore comments
 
         // Extract message container text
@@ -160,6 +177,16 @@ export async function runScrape(): Promise<{ found: number; newAdvisories: numbe
     newAdvisories,
     status: 'success',
   });
+
+  // Prune scrape logs older than 30 days
+  await pruneOldScrapeLogs(30);
+
+  if (newAdvisories > 0) {
+    await dispatchWebhookAlert(
+      'New Advisories Processed',
+      `Processed ${newAdvisories} new or updated power interruption advisories from ${uniquePosts.length} Facebook posts.`
+    );
+  }
 
   console.log(`[Scraper] Cycle finished in ${duration}ms. ${uniquePosts.length} posts checked, ${newAdvisories} advisories processed.`);
   return { found: uniquePosts.length, newAdvisories };

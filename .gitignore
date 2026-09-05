@@ -44,3 +44,6 @@ next-env.d.ts
 # sqlite temporary lock files
 *.db-shm
 *.db-wal
+
+# antigravity / gemini
+.gemini/

@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Search, MapPin, Check, X, Plus } from 'lucide-react';
 import { useScrollLock } from '@/lib/use-scroll-lock';
+
 
 interface PinAreaDialogProps {
   isOpen: boolean;
@@ -108,21 +110,42 @@ export const PinAreaDialog: React.FC<PinAreaDialogProps> = ({
   // Lock background page scroll while dialog is active
   useScrollLock(isOpen);
 
-  if (!isOpen) return null;
+  // Handle escape key to dismiss dialog
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   const q = search.toLowerCase().trim();
 
   return (
-    <div 
-      onClick={onClose}
-      className="fixed inset-0 z-50 bg-[var(--sheet-scrim)] backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all touch-none"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="bg-[var(--elevated-surface)] border border-[var(--hairline)] rounded-t-[28px] sm:rounded-[24px] max-w-md w-full p-5 space-y-4 shadow-2xl max-h-[85vh] flex flex-col overscroll-contain touch-pan-y"
-      >
-        {/* iOS Sheet Grabber Bar */}
-        <div className="w-9 h-1 rounded-full bg-[var(--label-tertiary)]/40 mx-auto -mt-1 mb-1" />
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.16 }}
+          onClick={onClose}
+          className="fixed inset-0 z-50 bg-[var(--sheet-scrim)] backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 touch-none"
+        >
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pin-dialog-title"
+            initial={{ y: '100%', opacity: 0.8 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: '100%', opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 450, damping: 34 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[var(--elevated-surface)] border border-[var(--hairline)] rounded-t-[32px] sm:rounded-[24px] max-w-md w-full p-5 space-y-4 shadow-2xl max-h-[85vh] flex flex-col overscroll-contain touch-pan-y overflow-hidden"
+          >
+            {/* iOS Sheet Grabber Bar */}
+            <div className="w-12 h-1.5 rounded-full bg-[var(--label-tertiary)]/70 dark:bg-white/35 mx-auto -mt-1 mb-1 shadow-xs" />
 
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -131,7 +154,7 @@ export const PinAreaDialog: React.FC<PinAreaDialogProps> = ({
               <MapPin className="w-4 h-4 fill-current text-[var(--accent-blue)]" />
             </div>
             <div>
-              <h3 className="text-[17px] font-semibold text-[var(--label-primary)]">Pin Location</h3>
+              <h3 id="pin-dialog-title" className="text-[17px] font-semibold text-[var(--label-primary)]">Pin Location</h3>
               <p className="text-[12px] text-[var(--label-secondary-alpha)]">Select your city or barangay to monitor.</p>
             </div>
           </div>
@@ -154,6 +177,7 @@ export const PinAreaDialog: React.FC<PinAreaDialogProps> = ({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search Cebu City, Lahug, Mandaue..." 
+              aria-label="Search city or barangay"
               className="w-full pl-2.5 pr-6 bg-transparent text-[14px] text-[var(--label-primary)] placeholder:text-[var(--label-tertiary)] focus:outline-none"
             />
             {search && (
@@ -168,7 +192,7 @@ export const PinAreaDialog: React.FC<PinAreaDialogProps> = ({
         </div>
 
         {/* Locations List */}
-        <div className="overflow-y-auto flex-1 space-y-4 pr-1 max-h-72 overscroll-contain touch-pan-y">
+        <div className="overflow-y-auto flex-1 space-y-4 pr-1 max-h-72 overscroll-contain touch-pan-y no-scrollbar sm:ios-drawer-scroll">
           {CEBU_LOCATIONS.map(group => {
             const cityMatches = !q || group.city.toLowerCase().includes(q);
             const matchingBrgys = group.barangays.filter(b => 
@@ -239,15 +263,19 @@ export const PinAreaDialog: React.FC<PinAreaDialogProps> = ({
 
         {/* Footer */}
         <div className="pt-2 border-t border-[var(--hairline)] flex items-center justify-between text-xs text-[var(--label-secondary-alpha)]">
-          <span>{favorites.length} places pinned</span>
-          <button 
+          <span className="font-mono-tabular">{favorites.length} places pinned</span>
+          <motion.button 
+            whileTap={{ scale: 0.94 }}
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-[var(--accent-blue)] text-white font-semibold text-xs hover:opacity-90 transition-opacity cursor-pointer ios-press"
+            className="px-4 py-2 rounded-xl bg-[var(--accent-blue)] text-white font-semibold text-xs hover:opacity-90 transition-opacity cursor-pointer select-none"
           >
             Done
-          </button>
+          </motion.button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
   );
 };
+

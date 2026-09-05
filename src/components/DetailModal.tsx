@@ -1,18 +1,21 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { 
   MapPin, Clock, Star, X, ExternalLink, FileText, 
   Map, CheckCircle2, AlertTriangle, Radio
 } from 'lucide-react';
 import { Interruption, AreaCoordinate } from '@/types';
 import { useScrollLock } from '@/lib/use-scroll-lock';
+import { OutageCountdownBar } from '@/components/OutageCountdownBar';
+
 
 interface DetailModalProps {
   item: Interruption | null;
   isOpen: boolean;
   onClose: () => void;
-  isFavorite: boolean;
+  favorites: string[];
   onToggleFavorite: (place: string) => void;
 }
 
@@ -120,22 +123,45 @@ function getPlaceGoogleMapsUrl(place: string, city: string): string {
 interface DetailModalContentProps {
   item: Interruption;
   onClose: () => void;
-  isFavorite: boolean;
+  favorites: string[];
   onToggleFavorite: (place: string) => void;
 }
 
 const DetailModalContent: React.FC<DetailModalContentProps> = ({
   item,
   onClose,
-  isFavorite,
+  favorites,
   onToggleFavorite,
 }) => {
   const [modalView, setModalView] = useState<'overview' | 'facebook'>('overview');
+  const [direction, setDirection] = useState<number>(0);
   const [selectedPlaceIdx, setSelectedPlaceIdx] = useState<number | 'all'>(0);
 
   const places = (item.barangays && item.barangays.length > 0) ? item.barangays : [item.area];
   const hasMultiplePlaces = places.length > 1;
   const activePlace = (typeof selectedPlaceIdx === 'number' && places[selectedPlaceIdx]) ? places[selectedPlaceIdx] : places[0];
+  const isFavorite = favorites.includes(activePlace);
+
+  const handleViewChange = (newView: 'overview' | 'facebook') => {
+    if (newView === modalView) return;
+    setDirection(newView === 'facebook' ? 1 : -1);
+    setModalView(newView);
+  };
+
+  const tabVariants = {
+    enter: (dir: number) => ({
+      x: dir > 0 ? 14 : -14,
+      opacity: 0,
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+    },
+    exit: (dir: number) => ({
+      x: dir > 0 ? -14 : 14,
+      opacity: 0,
+    }),
+  };
 
   function getStatusStyle(status: string) {
     switch (status) {
@@ -172,16 +198,13 @@ const DetailModalContent: React.FC<DetailModalContentProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* iOS Sheet Grabber Bar */}
-      <div className="w-9 h-1 rounded-full bg-[var(--label-tertiary)]/40 mx-auto -mt-1 mb-2" />
-
       {/* Navigation Bar / Title Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-0.5">
           <span className="text-[12px] font-medium text-[var(--label-secondary-alpha)]">
             {item.city} • {item.dateLabel}
           </span>
-          <h2 className="text-[20px] sm:text-[22px] font-bold text-[var(--label-primary)] tracking-tight leading-snug">
+          <h2 id="detail-modal-title" className="text-[20px] sm:text-[22px] font-bold text-[var(--label-primary)] tracking-tight leading-snug">
             {item.area}
           </h2>
         </div>
@@ -223,259 +246,308 @@ const DetailModalContent: React.FC<DetailModalContentProps> = ({
         </span>
       </div>
 
-      {/* Apple Native Segmented Control */}
-      <div className="p-0.5 rounded-xl bg-[var(--tertiary-fill)] flex items-center text-xs font-medium">
+      {/* Live In-Progress Countdown Bar */}
+      {item.status === 'ongoing' && (
+        <OutageCountdownBar
+          timeStart={item.timeStart}
+          timeEnd={item.timeEnd}
+          time={item.time}
+          status={item.status}
+        />
+      )}
+
+      {/* Apple Native Segmented Control with layoutId */}
+      <div className="p-1 rounded-xl bg-[var(--tertiary-fill)] border border-[var(--hairline)] grid grid-cols-2 text-xs font-medium relative select-none">
         <button
-          onClick={() => setModalView('overview')}
-          className={`flex-1 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+          type="button"
+          onClick={() => handleViewChange('overview')}
+          className={`relative h-9 sm:h-8.5 rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer z-10 select-none touch-manipulation px-2 ${
             modalView === 'overview'
-              ? 'bg-[var(--secondary-bg)] text-[var(--label-primary)] shadow-xs font-semibold'
+              ? 'text-[var(--label-primary)] font-semibold'
               : 'text-[var(--label-secondary-alpha)] hover:text-[var(--label-primary)]'
           }`}
         >
-          <Map className="w-3.5 h-3.5" />
-          <span>Location & Map {hasMultiplePlaces ? `(${places.length})` : ''}</span>
+          {modalView === 'overview' && (
+            <motion.div
+              layoutId="modal-view-tab-pill"
+              className="absolute inset-0 bg-[var(--secondary-bg)] rounded-lg shadow-xs border border-[var(--hairline)]"
+              transition={{ type: 'spring', stiffness: 500, damping: 38 }}
+            />
+          )}
+          <Map className="w-3.5 h-3.5 relative z-10 shrink-0" />
+          <span className="relative z-10 truncate">
+            Location & Map{hasMultiplePlaces ? ` (${places.length})` : ''}
+          </span>
         </button>
 
         <button
-          onClick={() => setModalView('facebook')}
-          className={`flex-1 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+          type="button"
+          onClick={() => handleViewChange('facebook')}
+          className={`relative h-9 sm:h-8.5 rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer z-10 select-none touch-manipulation px-2 ${
             modalView === 'facebook'
-              ? 'bg-[var(--secondary-bg)] text-[var(--label-primary)] shadow-xs font-semibold'
+              ? 'text-[var(--label-primary)] font-semibold'
               : 'text-[var(--label-secondary-alpha)] hover:text-[var(--label-primary)]'
           }`}
         >
-          <FileText className="w-3.5 h-3.5 text-[var(--accent-blue)]" />
-          <span>Official Bulletin</span>
+          {modalView === 'facebook' && (
+            <motion.div
+              layoutId="modal-view-tab-pill"
+              className="absolute inset-0 bg-[var(--secondary-bg)] rounded-lg shadow-xs border border-[var(--hairline)]"
+              transition={{ type: 'spring', stiffness: 500, damping: 38 }}
+            />
+          )}
+          <FileText className="w-3.5 h-3.5 text-[var(--accent-blue)] relative z-10 shrink-0" />
+          <span className="relative z-10 truncate">Official Bulletin</span>
         </button>
       </div>
 
-      {/* VIEW 1: OVERVIEW & MAPS */}
-      {modalView === 'overview' && (
-        <div className="space-y-4">
-          {/* Multi-Location Switcher if multiple barangays */}
-          {hasMultiplePlaces && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs px-1">
-                <span className="text-[12px] font-medium text-[var(--label-secondary-alpha)] uppercase tracking-wider">
-                  Affected Barangays
-                </span>
-                <span className="text-[11px] text-[var(--label-tertiary)]">
-                  {places.length} Sectors
-                </span>
-              </div>
-
-              <div className="flex gap-1.5 overflow-x-auto pb-1">
-                {places.map((place, idx) => (
-                  <button
-                    key={place}
-                    onClick={() => setSelectedPlaceIdx(idx)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all cursor-pointer ios-press ${
-                      selectedPlaceIdx === idx
-                        ? 'bg-[var(--accent-blue)] text-white shadow-xs'
-                        : 'bg-[var(--tertiary-fill)] text-[var(--label-secondary)] hover:text-[var(--label-primary)]'
-                    }`}
-                  >
-                    {place}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Interactive Map Embed */}
-          {(() => {
-            const place = activePlace;
-            const coords = getPlaceCoords(place, item.city);
-            const embedUrl = getPlaceMapEmbedUrl(place, item.city);
-            const mapsUrl = getPlaceGoogleMapsUrl(place, item.city);
-
-            return (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs px-1">
-                  <span className="font-medium text-[var(--label-secondary-alpha)] flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-[var(--accent-blue)]" />
-                    <span>{place} ({item.city})</span>
-                  </span>
-
-                  <a 
-                    href={mapsUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="text-[var(--accent-blue)] hover:underline font-medium flex items-center gap-1 text-[12px] cursor-pointer"
-                  >
-                    <span>Open in Maps</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-
-                <div className="w-full h-56 rounded-2xl overflow-hidden border border-[var(--hairline)] bg-[var(--tertiary-fill)] relative shadow-inner">
-                  <iframe 
-                    title={`Map of ${place}`}
-                    src={embedUrl}
-                    width="100%" 
-                    height="100%" 
-                    style={{ border: 0 }} 
-                    loading="lazy" 
-                    referrerPolicy="no-referrer-when-downgrade"
-                  />
-                  <div className="absolute bottom-2.5 left-2.5 z-10 px-2.5 py-1 rounded-full bg-[var(--secondary-bg)]/90 backdrop-blur-md border border-[var(--hairline)] text-[11px] text-[var(--label-primary)] font-mono pointer-events-none shadow-xs">
-                    {coords.lat}, {coords.lng}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Inset Grouped Section: Covered Streets */}
-          <div className="ios-grouped-card p-4 space-y-1.5">
-            <span className="text-[12px] font-semibold text-[var(--label-primary)] uppercase tracking-wider block">
-              Designated Feeder Streets
-            </span>
-            <p className="text-xs sm:text-[14px] text-[var(--label-secondary-alpha)] leading-relaxed">
-              {item.streets || 'Portions of designated feeder lines in affected area.'}
-            </p>
-            <span className="text-[11px] text-[var(--label-tertiary)] block pt-1">
-              Affects specific line transformers along these roads, not necessarily the entire municipality.
-            </span>
-          </div>
-
-          {/* Inset Grouped Section: Engineering Scope */}
-          <div className="ios-grouped-card p-4 space-y-1.5">
-            <span className="text-[12px] font-semibold text-[var(--label-primary)] uppercase tracking-wider block">
-              Engineering & Maintenance Scope
-            </span>
-            <p className="text-xs sm:text-[14px] text-[var(--label-secondary-alpha)] leading-relaxed">
-              {item.reason}
-            </p>
-          </div>
-
-          {/* Action CTAs */}
-          <div className="flex gap-2 pt-1">
-            <button
-              onClick={() => setModalView('facebook')}
-              className="flex-1 py-3 rounded-xl bg-[var(--tertiary-fill)] hover:bg-[var(--tertiary-fill)]/80 text-[var(--label-primary)] text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ios-press"
+      {/* Animated Tab Content Container */}
+      <div className="overflow-x-hidden min-h-[300px]">
+        <AnimatePresence mode="wait" initial={false} custom={direction}>
+          {modalView === 'overview' ? (
+            <motion.div
+              key="overview"
+              custom={direction}
+              variants={tabVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className="space-y-4"
             >
-              <FileText className="w-3.5 h-3.5 text-[var(--accent-blue)]" />
-              <span>Official Bulletin & Graphic</span>
-            </button>
-
-            {item.fbPostUrl && (
-              <a
-                href={item.fbPostUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-3 rounded-xl bg-[var(--accent-blue)] hover:opacity-90 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-opacity cursor-pointer ios-press flex-shrink-0"
-                title="Open post on Facebook"
-              >
-                <span>View Source</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* VIEW 2: OFFICIAL FACEBOOK BULLETIN */}
-      {modalView === 'facebook' && (
-        <div className="space-y-4">
-          <div className="ios-grouped-card p-4 space-y-3">
-            {/* Header Author */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-full bg-[var(--accent-blue)]/15 text-[var(--accent-blue)] flex items-center justify-center font-bold text-sm">
-                  VE
-                </div>
-                <div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs sm:text-sm font-semibold text-[var(--label-primary)]">
-                      Visayan Electric
+              {/* Multi-Location Switcher if multiple barangays */}
+              {hasMultiplePlaces && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs px-1">
+                    <span className="text-[12px] font-medium text-[var(--label-secondary-alpha)] uppercase tracking-wider">
+                      Affected Barangays
                     </span>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[var(--accent-blue)] fill-current" />
+                    <span className="text-[11px] text-[var(--label-tertiary)]">
+                      {places.length} areas
+                    </span>
                   </div>
-                  <span className="text-[11px] text-[var(--label-secondary-alpha)]">
-                    {item.fbTime} • Public Notice
-                  </span>
+
+                  <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                    {places.map((place, idx) => (
+                      <button
+                        key={place}
+                        onClick={() => setSelectedPlaceIdx(idx)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all cursor-pointer ios-press ${
+                          selectedPlaceIdx === idx
+                            ? 'bg-[var(--accent-blue)] text-white shadow-xs'
+                            : 'bg-[var(--tertiary-fill)] text-[var(--label-secondary)] hover:text-[var(--label-primary)]'
+                        }`}
+                      >
+                        {place}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+              )}
+
+              {/* Interactive Google Map Embed */}
+              {(() => {
+                const place = activePlace;
+                const coords = getPlaceCoords(place, item.city);
+                const embedUrl = getPlaceMapEmbedUrl(place, item.city);
+                const mapsUrl = getPlaceGoogleMapsUrl(place, item.city);
+
+                return (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs px-1">
+                      <span className="font-semibold text-[var(--label-primary)] flex items-center gap-1.5 truncate">
+                        <MapPin className="w-3.5 h-3.5 text-[var(--accent-blue)] shrink-0" />
+                        <span className="truncate">{place}, {item.city}</span>
+                      </span>
+
+                      <a 
+                        href={mapsUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-[var(--accent-blue)] hover:underline font-medium flex items-center gap-1 text-[11px] cursor-pointer shrink-0"
+                        title="Open in Google Maps"
+                      >
+                        <span>Google Maps</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+
+                    <div className="w-full h-56 rounded-2xl overflow-hidden border border-[var(--hairline)] bg-[var(--tertiary-fill)] relative shadow-inner">
+                      <iframe 
+                        title={`Map of ${place}, ${item.city}`}
+                        src={embedUrl}
+                        width="100%" 
+                        height="100%" 
+                        style={{ border: 0 }} 
+                        loading="lazy" 
+                        referrerPolicy="no-referrer-when-downgrade"
+                      />
+                      <div className="absolute bottom-2.5 left-2.5 z-10 px-2.5 py-1 rounded-full bg-[var(--secondary-bg)]/90 backdrop-blur-md border border-[var(--hairline)] text-[11px] text-[var(--label-primary)] font-mono-tabular pointer-events-none shadow-xs">
+                        {coords.lat}, {coords.lng}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Inset Grouped Section: Covered Streets */}
+              <div className="ios-grouped-card p-4 space-y-1.5">
+                <span className="text-[12px] font-semibold text-[var(--label-primary)] uppercase tracking-wider block">
+                  Designated Feeder Streets
+                </span>
+                <p className="text-xs sm:text-[14px] text-[var(--label-secondary-alpha)] leading-relaxed">
+                  {item.streets || 'Portions of designated feeder lines in affected area.'}
+                </p>
+                <span className="text-[11px] text-[var(--label-tertiary)] block pt-1">
+                  Affects specific line transformers along these roads, not necessarily the entire municipality.
+                </span>
+              </div>
+
+              {/* Inset Grouped Section: Engineering Scope */}
+              <div className="ios-grouped-card p-4 space-y-1.5">
+                <span className="text-[12px] font-semibold text-[var(--label-primary)] uppercase tracking-wider block">
+                  Engineering & Maintenance Scope
+                </span>
+                <p className="text-xs sm:text-[14px] text-[var(--label-secondary-alpha)] leading-relaxed">
+                  {item.reason}
+                </p>
+              </div>
+
+              {/* Action CTAs */}
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleViewChange('facebook')}
+                  className="flex-1 py-3 rounded-xl bg-[var(--tertiary-fill)] hover:bg-[var(--tertiary-fill)]/80 text-[var(--label-primary)] text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ios-press"
+                >
+                  <FileText className="w-3.5 h-3.5 text-[var(--accent-blue)]" />
+                  <span>Official Bulletin & Graphic</span>
+                </button>
+
+                {item.fbPostUrl && (
+                  <a
+                    href={item.fbPostUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-3 rounded-xl bg-[var(--accent-blue)] hover:opacity-90 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-opacity cursor-pointer ios-press flex-shrink-0"
+                    title="Open post on Facebook"
+                  >
+                    <span>View Source</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="facebook"
+              custom={direction}
+              variants={tabVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className="space-y-4"
+            >
+              <div className="ios-grouped-card p-4 space-y-3">
+                {/* Header Author */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-full bg-[var(--accent-blue)]/15 text-[var(--accent-blue)] flex items-center justify-center font-bold text-sm">
+                      VE
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs sm:text-sm font-semibold text-[var(--label-primary)]">
+                          Visayan Electric
+                        </span>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[var(--accent-blue)] fill-current" />
+                      </div>
+                      <span className="text-[11px] text-[var(--label-secondary-alpha)]">
+                        {item.fbTime} • Public Notice
+                      </span>
+                    </div>
+                  </div>
+
+                  {item.fbPostUrl && (
+                    <a 
+                      href={item.fbPostUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1 rounded-full bg-[var(--tertiary-fill)] text-[11px] font-medium text-[var(--accent-blue)] hover:opacity-80 flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Open post on Facebook"
+                    >
+                      <span>Source ↗</span>
+                    </a>
+                  )}
+                </div>
+
+                {/* Caption Text */}
+                <div className="text-xs sm:text-[13px] text-[var(--label-secondary-alpha)] leading-relaxed space-y-2 whitespace-pre-wrap">
+                  <p className="font-semibold text-[var(--label-primary)]">
+                    ADVISORY: {item.area} ({item.city})
+                  </p>
+                  <p>
+                    {item.fbCaption || item.reason}
+                  </p>
+                </div>
+
+                {/* Infographic Image / Card */}
+                {item.fbImageUrl && !item.fbImageUrl.includes('unsplash.com') ? (
+                  <div className="rounded-xl overflow-hidden border border-[var(--hairline)] bg-[var(--tertiary-fill)]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img 
+                      src={item.fbImageUrl} 
+                      alt="VECO Advisory Graphic" 
+                      className="w-full h-auto object-cover"
+                    />
+                    <div className="p-2.5 text-[11px] text-[var(--label-secondary-alpha)] flex items-center justify-between">
+                      <span>Official Advisory Infographic</span>
+                      <a href={item.fbImageUrl} target="_blank" rel="noopener noreferrer" className="text-[var(--accent-blue)] hover:underline cursor-pointer font-medium">
+                        View Full Image ↗
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl p-4 bg-[var(--tertiary-fill)] border border-[var(--hairline)] space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-[var(--label-primary)] uppercase tracking-wider">
+                        VISAYAN ELECTRIC ADVISORY
+                      </span>
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--secondary-bg)] text-[var(--accent-orange)]">
+                        {item.statusLabel}
+                      </span>
+                    </div>
+
+                    <div className="text-xs space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-[var(--label-secondary-alpha)]">Schedule:</span>
+                        <span className="font-medium text-[var(--label-primary)]">{item.dateLabel} ({item.time})</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[var(--label-secondary-alpha)]">Location:</span>
+                        <span className="font-medium text-[var(--label-primary)]">{item.area} ({item.city})</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {item.fbPostUrl && (
                 <a 
                   href={item.fbPostUrl} 
                   target="_blank" 
-                  rel="noopener noreferrer"
-                  className="px-2.5 py-1 rounded-full bg-[var(--tertiary-fill)] text-[11px] font-medium text-[var(--accent-blue)] hover:opacity-80 flex items-center gap-1 cursor-pointer transition-colors"
-                  title="Open post on Facebook"
+                  rel="noopener noreferrer" 
+                  className="w-full py-3 rounded-xl bg-[var(--accent-blue)] hover:opacity-90 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-opacity shadow-xs cursor-pointer ios-press"
                 >
-                  <span>Source ↗</span>
+                  <span>Open Post on Facebook</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               )}
-            </div>
-
-            {/* Caption Text */}
-            <div className="text-xs sm:text-[13px] text-[var(--label-secondary-alpha)] leading-relaxed space-y-2 whitespace-pre-wrap">
-              <p className="font-semibold text-[var(--label-primary)]">
-                ADVISORY: {item.area} ({item.city})
-              </p>
-              <p>
-                {item.fbCaption || item.reason}
-              </p>
-            </div>
-
-            {/* Infographic Image / Card */}
-            {item.fbImageUrl && !item.fbImageUrl.includes('unsplash.com') ? (
-              <div className="rounded-xl overflow-hidden border border-[var(--hairline)] bg-[var(--tertiary-fill)]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img 
-                  src={item.fbImageUrl} 
-                  alt="VECO Advisory Graphic" 
-                  className="w-full h-auto object-cover"
-                />
-                <div className="p-2.5 text-[11px] text-[var(--label-secondary-alpha)] flex items-center justify-between">
-                  <span>Official Advisory Infographic</span>
-                  <a href={item.fbImageUrl} target="_blank" rel="noopener noreferrer" className="text-[var(--accent-blue)] hover:underline cursor-pointer font-medium">
-                    View Full Image ↗
-                  </a>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-xl p-4 bg-[var(--tertiary-fill)] border border-[var(--hairline)] space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-[var(--label-primary)] uppercase tracking-wider">
-                    VISAYAN ELECTRIC ADVISORY
-                  </span>
-                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--secondary-bg)] text-[var(--accent-orange)]">
-                    {item.statusLabel}
-                  </span>
-                </div>
-
-                <div className="text-xs space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-[var(--label-secondary-alpha)]">Schedule:</span>
-                    <span className="font-medium text-[var(--label-primary)]">{item.dateLabel} ({item.time})</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--label-secondary-alpha)]">Location:</span>
-                    <span className="font-medium text-[var(--label-primary)]">{item.area} ({item.city})</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {item.fbPostUrl && (
-            <a 
-              href={item.fbPostUrl} 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="w-full py-3 rounded-xl bg-[var(--accent-blue)] hover:opacity-90 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-opacity shadow-xs cursor-pointer ios-press"
-            >
-              <span>Open Post on Facebook</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+            </motion.div>
           )}
-        </div>
-      )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 };
@@ -484,31 +556,81 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   item,
   isOpen,
   onClose,
-  isFavorite,
+  favorites,
   onToggleFavorite,
 }) => {
   // Lock background page scroll while modal is active
   useScrollLock(isOpen && !!item);
+  const dragControls = useDragControls();
 
-  if (!isOpen || !item) return null;
+  // Handle escape key to dismiss modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   return (
-    <div 
-      onClick={onClose}
-      className="fixed inset-0 z-50 bg-[var(--sheet-scrim)] backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all touch-none"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="bg-[var(--elevated-surface)] border border-[var(--hairline)] rounded-t-[28px] sm:rounded-[24px] max-w-lg w-full p-5 sm:p-6 space-y-4 shadow-2xl max-h-[88vh] overflow-y-auto overscroll-contain touch-pan-y"
-      >
-        <DetailModalContent 
-          key={item.id}
-          item={item}
-          onClose={onClose}
-          isFavorite={isFavorite}
-          onToggleFavorite={onToggleFavorite}
-        />
-      </div>
-    </div>
+    <AnimatePresence>
+      {isOpen && item && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.16 }}
+          onClick={onClose}
+          className="fixed inset-0 z-50 bg-[var(--sheet-scrim)] backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
+        >
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="detail-modal-title"
+            initial={{ y: '100%', opacity: 0.8 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: '100%', opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 450, damping: 34 }}
+            drag="y"
+            dragListener={false}
+            dragControls={dragControls}
+            dragConstraints={{ top: 0 }}
+            dragElastic={{ top: 0.05, bottom: 0.5 }}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 100 || info.velocity.y > 300) {
+                onClose();
+              }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[var(--elevated-surface)] border border-[var(--hairline)] rounded-t-[32px] sm:rounded-[24px] max-w-lg w-full shadow-2xl max-h-[90vh] sm:max-h-[85vh] flex flex-col overflow-hidden relative"
+          >
+            {/* iOS Sheet Grabber Bar - Fixed Non-Scrolling Drag Handle */}
+            <div 
+              onPointerDown={(e) => dragControls.start(e)}
+              className="w-full pt-3 pb-2 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none select-none shrink-0 z-20 bg-[var(--elevated-surface)]"
+              aria-label="Drag handle to dismiss sheet"
+            >
+              <div className="w-12 h-1.5 rounded-full bg-[var(--label-tertiary)]/70 dark:bg-white/35 hover:bg-[var(--label-secondary)] transition-colors shadow-xs" />
+            </div>
+
+            {/* Scrollable Content Container (Contained strictly inside rounded frame) */}
+            <div 
+              className="flex-1 overflow-y-auto overscroll-contain px-5 pb-12 sm:px-6 sm:pb-8 space-y-4 no-scrollbar sm:ios-drawer-scroll"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
+              <DetailModalContent 
+                key={item.id}
+                item={item}
+                onClose={onClose}
+                favorites={favorites}
+                onToggleFavorite={onToggleFavorite}
+              />
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };
+

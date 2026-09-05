@@ -325,4 +325,16 @@ export async function getLatestScrapeLog(): Promise<ScrapeLog | null> {
   };
 }
 
+export async function pruneOldScrapeLogs(days = 30): Promise<void> {
+  await initDbSchema();
+  try {
+    await db.execute({
+      sql: `DELETE FROM scrape_logs WHERE scraped_at < datetime('now', '-' || ? || ' days')`,
+      args: [days]
+    });
+  } catch (err) {
+    console.warn('[DB] Scrape log pruning notice:', err);
+  }
+}
+
 export default db;

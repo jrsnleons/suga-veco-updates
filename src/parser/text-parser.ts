@@ -60,15 +60,35 @@ export function parsePostText(post: ParsedRawPost): Partial<Interruption> | null
   let status: InterruptionStatus = 'upcoming';
   let statusLabel = 'Scheduled';
 
-  if (upper.includes('CANCEL') || upper.includes('WILL NOT PUSH THROUGH') || upper.includes('DEFERRED')) {
+  if (
+    upper.includes('CANCEL') || 
+    upper.includes('WILL NOT PUSH THROUGH') || 
+    upper.includes('DEFERRED') ||
+    upper.includes('GIKANSELA') ||
+    upper.includes('GIDEFER')
+  ) {
     type = 'cancelled';
     status = 'cancelled';
     statusLabel = 'Cancelled';
-  } else if (upper.includes('DELAY') || upper.includes('RESCHEDULED') || upper.includes('STARTED AT')) {
+  } else if (
+    upper.includes('DELAY') || 
+    upper.includes('RESCHEDULED') || 
+    upper.includes('STARTED AT') ||
+    upper.includes('NALANGAN')
+  ) {
     type = 'delayed';
     status = 'delayed';
     statusLabel = 'Delayed Start';
-  } else if (upper.includes('EMERGENCY') || upper.includes('UNSCHEDULED') || upper.includes('TRIPPED') || upper.includes('FEEDER TRIP')) {
+  } else if (
+    upper.includes('EMERGENCY') || 
+    upper.includes('UNSCHEDULED') || 
+    upper.includes('TRIPPED') || 
+    upper.includes('FEEDER TRIP') ||
+    upper.includes('LINE TRIP') ||
+    upper.includes('SUBSTATION TRIP') ||
+    upper.includes('PAGKAPALONG') ||
+    upper.includes('NAPALONG')
+  ) {
     type = 'emergency';
     status = 'ongoing';
     statusLabel = 'Active Outage';
@@ -78,12 +98,14 @@ export function parsePostText(post: ParsedRawPost): Partial<Interruption> | null
     upper.includes('ENERGIZED') ||
     upper.includes('CONCLUDED') ||
     upper.includes('FINAL UPDATE') ||
-    upper.includes('ENDED')
+    upper.includes('ENDED') ||
+    upper.includes('NABALIK NA') ||
+    upper.includes('NAKABALIK NA')
   ) {
     type = upper.includes('ROTATIONAL') ? 'rotational' : 'scheduled';
     status = 'restored';
     statusLabel = 'Restored';
-  } else if (upper.includes('ROTATIONAL') || upper.includes('MANUAL LOAD') || upper.includes('NGCP')) {
+  } else if (upper.includes('ROTATIONAL') || upper.includes('MANUAL LOAD') || upper.includes('NGCP') || upper.includes('LOAD SHEDDING')) {
     type = 'rotational';
     status = upper.includes('ONGOING') ? 'ongoing' : 'upcoming';
     statusLabel = status === 'ongoing' ? 'In Progress' : 'Rotational';
@@ -113,13 +135,34 @@ export function parsePostText(post: ParsedRawPost): Partial<Interruption> | null
     matchedBarangays.push(matchedCity);
   }
 
-  // 4. Extract Time Range
-  const timeMatch = normalizedText.match(/(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))\s*(?:–|-|to)\s*(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))/i);
-  const timeDisplay = timeMatch ? `${timeMatch[1]} – ${timeMatch[2]}` : 'Time announced on site';
+  // 4. Extract Time Range (handles 8am to 5pm, 8:00 AM - 5:00 PM, 08:00 - 17:00)
+  const timeMatch12 = normalizedText.match(/(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))\s*(?:–|-|to|until)\s*(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))/i);
+  const timeMatch24 = !timeMatch12 ? normalizedText.match(/(\d{1,2}:\d{2})\s*(?:–|-|to|until)\s*(\d{1,2}:\d{2})/) : null;
+  const timeMatch = timeMatch12 || timeMatch24;
+  const timeDisplay = timeMatch ? `${timeMatch[1].trim()} – ${timeMatch[2].trim()}` : 'Time announced on site';
 
   // 5. Extract Date
   const dateMatch = normalizedText.match(/(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}(?:,?\s+\d{4})?/i);
-  const dateStr = dateMatch ? dateMatch[0] : 'Today (Sep 5)';
+  let resolvedDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
+  let dateStr = 'Upcoming';
+
+  if (dateMatch) {
+    dateStr = dateMatch[0].trim();
+    try {
+      const currentYear = new Date().getFullYear();
+      const hasYear = /\d{4}/.test(dateStr);
+      const toParse = hasYear ? dateStr : `${dateStr}, ${currentYear}`;
+      const parsed = new Date(toParse);
+      if (!isNaN(parsed.getTime())) {
+        const y = parsed.getFullYear();
+        const m = String(parsed.getMonth() + 1).padStart(2, '0');
+        const d = String(parsed.getDate()).padStart(2, '0');
+        resolvedDate = `${y}-${m}-${d}`;
+      }
+    } catch {}
+  } else {
+    dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
+  }
 
   const areaTitle = matchedBarangays.slice(0, 3).join(', ') + (matchedBarangays.length > 3 ? ` +${matchedBarangays.length - 3} more` : '');
   const isPast = status === 'restored';
@@ -138,7 +181,7 @@ export function parsePostText(post: ParsedRawPost): Partial<Interruption> | null
     fbPostId: post.postId,
     fbPostUrl,
     fbImageUrl: post.img,
-    date: '2026-09-04',
+    date: resolvedDate,
     dateLabel: dateStr,
     timeStart: timeMatch ? timeMatch[1] : '08:00',
     timeEnd: timeMatch ? timeMatch[2] : '17:00',

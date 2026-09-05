@@ -1,38 +1,56 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Interruption } from '@/types';
 import { enrichWithLiveStatus } from '@/lib/status-utils';
+import { loadCachedOutages, saveCachedOutages, formatCachedTime } from '@/lib/offline-storage';
 import { Header } from '@/components/Header';
-import { SavedPlaces } from '@/components/SavedPlaces';
+import { GridPulseView } from '@/components/GridPulseView';
+import { RadarMap } from '@/components/RadarMap';
 import { StatusFeed } from '@/components/StatusFeed';
 import { CalendarView } from '@/components/CalendarView';
-import { ArchiveList } from '@/components/ArchiveList';
 import { DetailModal } from '@/components/DetailModal';
 import { PinAreaDialog } from '@/components/PinAreaDialog';
 import { BottomNav, ActiveTab } from '@/components/BottomNav';
+import { DisclaimerBanner } from '@/components/DisclaimerBanner';
+import { SystemErrorToast } from '@/components/SystemErrorToast';
 
 export default function Home() {
-  const [outages, setOutages] = useState<Interruption[]>([]);
-  const [currentTab, setCurrentTab] = useState<ActiveTab>('status');
-  const [searchQuery, setSearchQuery] = useState('');
-  // Lazy initial state avoids synchronous setState in useEffect under React 19
+  // Initial state hydrated instantly from offline cache if available
+  const [outages, setOutages] = useState<Interruption[]>(() => {
+    if (typeof window === 'undefined') return [];
+    const cached = loadCachedOutages();
+    return cached?.data ? cached.data.map(o => enrichWithLiveStatus(o)) : [];
+  });
+
+  const [currentTab, setCurrentTab] = useState<ActiveTab>('pulse');
   const [favorites, setFavorites] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return ['Lahug', 'Guadalupe'];
+    if (typeof window === 'undefined') return [];
     try {
       const stored = localStorage.getItem('veco_favorites');
-      return stored ? JSON.parse(stored) : ['Lahug', 'Guadalupe'];
-    } catch {
-      return ['Lahug', 'Guadalupe'];
-    }
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
   });
 
   const [selectedItem, setSelectedItem] = useState<Interruption | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPinDialogOpen, setIsPinDialogOpen] = useState(false);
-  const [lastSyncedText, setLastSyncedText] = useState('Checking...');
+  const [lastSyncedText, setLastSyncedText] = useState(() => {
+    if (typeof window === 'undefined') return 'Checking...';
+    const cached = loadCachedOutages();
+    return cached?.cachedAt ? formatCachedTime(cached.cachedAt) : 'Checking...';
+  });
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Error state for system-down popup
+  const [fetchError, setFetchError] = useState(false);
+  const [fetchErrorMessage, setFetchErrorMessage] = useState('');
+  const failureCountRef = React.useRef(0);
 
   const saveFavorites = (favs: string[]) => {
     setFavorites(favs);
@@ -52,18 +70,18 @@ export default function Home() {
   };
 
   // Load Outages from API
-  useEffect(() => {
-    let ignore = false;
-
-    const loadOutages = async () => {
-      try {
-        const res = await fetch('/api/outages');
-        if (!res.ok) throw new Error('Failed to load data');
-        const data = await res.json();
-        if (ignore) return;
-
+  const loadOutages = useCallback((signal?: AbortSignal) => {
+    fetch('/api/outages', { signal })
+      .then(res => {
+        if (!res.ok) throw new Error(`Server error (${res.status})`);
+        return res.json();
+      })
+      .then(data => {
         if (data.data) {
-          setOutages(data.data.map((o: Interruption) => enrichWithLiveStatus(o)));
+          const enriched = data.data.map((o: Interruption) => enrichWithLiveStatus(o));
+          setOutages(enriched);
+          // Persist fresh data to offline storage
+          saveCachedOutages(enriched, data.lastSynced);
         }
         if (data.lastSynced) {
           const d = new Date(data.lastSynced);
@@ -71,30 +89,63 @@ export default function Home() {
         } else {
           setLastSyncedText('Live');
         }
-      } catch (err) {
-        if (!ignore) {
-          console.warn('Could not fetch latest outages:', err);
+
+        failureCountRef.current = 0;
+        setFetchError(false);
+      })
+      .catch(err => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        console.warn('Could not fetch latest outages:', err);
+        
+        // Check if cached data already exists
+        const cached = loadCachedOutages();
+        if (cached && cached.data.length > 0) {
+          setLastSyncedText(formatCachedTime(cached.cachedAt));
+        } else {
           setLastSyncedText('Offline mode');
         }
-      }
-    };
 
-    void loadOutages();
-    const interval = setInterval(loadOutages, 60000);
+        failureCountRef.current += 1;
+        // Only trigger popup if offline and no cached data is available
+        if (failureCountRef.current >= 2 && (!cached || cached.data.length === 0)) {
+          setFetchError(true);
+          setFetchErrorMessage(
+            'Unable to reach the schedule server. Data shown may be outdated. Please check your connection and try again.'
+          );
+        }
+      });
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadOutages(controller.signal);
+    const interval = setInterval(() => loadOutages(), 60000);
 
     // Periodically re-evaluate statuses in real time as the clock advances
     const clockTick = setInterval(() => {
-      if (!ignore) {
-        setOutages(prev => prev.map(o => enrichWithLiveStatus(o)));
-      }
+      setOutages(prev => prev.map(o => enrichWithLiveStatus(o)));
     }, 30000);
 
+    // Monitor online/offline events
+    const handleOnline = () => {
+      loadOutages();
+    };
+    const handleOffline = () => {
+      const cached = loadCachedOutages();
+      setLastSyncedText(cached?.cachedAt ? formatCachedTime(cached.cachedAt) : 'Offline');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
     return () => {
-      ignore = true;
+      controller.abort();
       clearInterval(interval);
       clearInterval(clockTick);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [loadOutages]);
 
   // Handle Manual Sync
   const handleSync = async () => {
@@ -105,14 +156,26 @@ export default function Home() {
       if (res.ok) {
         const result = await res.json();
         if (result.data) {
-          setOutages(result.data.map((o: Interruption) => enrichWithLiveStatus(o)));
+          const enriched = result.data.map((o: Interruption) => enrichWithLiveStatus(o));
+          setOutages(enriched);
+          saveCachedOutages(enriched, result.lastSynced);
         }
         setLastSyncedText('Synced just now');
+        setFetchError(false);
+        failureCountRef.current = 0;
       } else {
         setLastSyncedText('Sync skipped');
+        setFetchError(true);
+        setFetchErrorMessage(
+          'The data sync could not be completed. The scraping service may be temporarily down. Existing schedules are still displayed.'
+        );
       }
     } catch {
       setLastSyncedText('Sync unavailable');
+      setFetchError(true);
+      setFetchErrorMessage(
+        'Could not connect to the sync service. Please check your internet connection and try again.'
+      );
     } finally {
       setIsSyncing(false);
     }
@@ -130,68 +193,76 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[var(--system-bg)] text-[var(--label-primary)] transition-colors">
+      {/* Disclaimer Banner */}
+      <DisclaimerBanner />
+
       <Header 
         lastSyncedText={lastSyncedText}
         isSyncing={isSyncing}
         onSync={handleSync}
       />
 
-      <main className="max-w-2xl sm:max-w-3xl md:max-w-4xl mx-auto px-4 sm:px-6 pt-4 pb-32 space-y-6">
+      <main className="max-w-2xl sm:max-w-3xl md:max-w-4xl mx-auto px-4 sm:px-6 pt-4 pb-28 space-y-6">
         <AnimatePresence mode="wait">
-          {currentTab === 'status' && (
+          {currentTab === 'pulse' && (
             <motion.div 
-              key="status"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.16 }}
-              className="space-y-6"
+              key="pulse"
+              initial={{ opacity: 0, y: 8, filter: 'blur(4px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+              transition={{ type: 'spring', stiffness: 450, damping: 32 }}
             >
-              {/* Pinned Locations Section */}
-              <SavedPlaces 
-                favorites={favorites}
+              <GridPulseView
                 outages={outages}
-                onSelect={(brgy) => setSearchQuery(brgy)}
+                favorites={favorites}
+                onOpenDetail={handleOpenDetail}
+                onToggleFavorite={handleToggleFavorite}
                 onOpenPinDialog={() => setIsPinDialogOpen(true)}
-                onRemove={handleToggleFavorite}
               />
+            </motion.div>
+          )}
 
-              {/* Status Feed Section */}
+          {currentTab === 'radar' && (
+            <motion.div 
+              key="radar"
+              initial={{ opacity: 0, y: 8, filter: 'blur(4px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+              transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+            >
+              <RadarMap 
+                outages={outages}
+                onOpenDetail={handleOpenDetail}
+              />
+            </motion.div>
+          )}
+
+          {currentTab === 'watchlist' && (
+            <motion.div 
+              key="watchlist"
+              initial={{ opacity: 0, y: 8, filter: 'blur(4px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+              transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+            >
               <StatusFeed 
                 outages={outages}
-                onOpenDetail={handleOpenDetail}
                 favorites={favorites}
-                onToggleFavorite={handleToggleFavorite}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
+                onOpenDetail={handleOpenDetail}
+                onOpenPinDialog={() => setIsPinDialogOpen(true)}
               />
             </motion.div>
           )}
 
-          {currentTab === 'calendar' && (
+          {currentTab === 'timeline' && (
             <motion.div 
-              key="calendar"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.16 }}
+              key="timeline"
+              initial={{ opacity: 0, y: 8, filter: 'blur(4px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+              transition={{ type: 'spring', stiffness: 450, damping: 32 }}
             >
               <CalendarView 
-                outages={outages}
-                onOpenDetail={handleOpenDetail}
-              />
-            </motion.div>
-          )}
-
-          {currentTab === 'archive' && (
-            <motion.div 
-              key="archive"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.16 }}
-            >
-              <ArchiveList 
                 outages={outages}
                 onOpenDetail={handleOpenDetail}
               />
@@ -200,11 +271,19 @@ export default function Home() {
         </AnimatePresence>
       </main>
 
+      {/* System Error Toast */}
+      <SystemErrorToast
+        isVisible={fetchError}
+        onDismiss={() => setFetchError(false)}
+        onRetry={() => loadOutages()}
+        message={fetchErrorMessage}
+      />
+
       <DetailModal 
         item={selectedItem}
         isOpen={isModalOpen}
         onClose={handleCloseDetail}
-        isFavorite={selectedItem ? favorites.includes(selectedItem.barangays[0] || selectedItem.area) : false}
+        favorites={favorites}
         onToggleFavorite={handleToggleFavorite}
       />
 
