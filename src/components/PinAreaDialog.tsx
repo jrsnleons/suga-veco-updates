@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Search, MapPin, Check, X, Plus } from 'lucide-react';
+import { useScrollLock } from '@/lib/use-scroll-lock';
 
 interface PinAreaDialogProps {
   isOpen: boolean;
@@ -104,6 +105,9 @@ export const PinAreaDialog: React.FC<PinAreaDialogProps> = ({
 }) => {
   const [search, setSearch] = useState('');
 
+  // Lock background page scroll while dialog is active
+  useScrollLock(isOpen);
+
   if (!isOpen) return null;
 
   const q = search.toLowerCase().trim();
@@ -111,11 +115,11 @@ export const PinAreaDialog: React.FC<PinAreaDialogProps> = ({
   return (
     <div 
       onClick={onClose}
-      className="fixed inset-0 z-50 bg-[var(--sheet-scrim)] backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all"
+      className="fixed inset-0 z-50 bg-[var(--sheet-scrim)] backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all touch-none"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-[var(--elevated-surface)] border border-[var(--hairline)] rounded-t-[28px] sm:rounded-[24px] max-w-md w-full p-5 space-y-4 shadow-2xl max-h-[85vh] flex flex-col"
+        className="bg-[var(--elevated-surface)] border border-[var(--hairline)] rounded-t-[28px] sm:rounded-[24px] max-w-md w-full p-5 space-y-4 shadow-2xl max-h-[85vh] flex flex-col overscroll-contain touch-pan-y"
       >
         {/* iOS Sheet Grabber Bar */}
         <div className="w-9 h-1 rounded-full bg-[var(--label-tertiary)]/40 mx-auto -mt-1 mb-1" />
@@ -164,7 +168,7 @@ export const PinAreaDialog: React.FC<PinAreaDialogProps> = ({
         </div>
 
         {/* Locations List */}
-        <div className="overflow-y-auto flex-1 space-y-4 pr-1 max-h-72">
+        <div className="overflow-y-auto flex-1 space-y-4 pr-1 max-h-72 overscroll-contain touch-pan-y">
           {CEBU_LOCATIONS.map(group => {
             const cityMatches = !q || group.city.toLowerCase().includes(q);
             const matchingBrgys = group.barangays.filter(b => 

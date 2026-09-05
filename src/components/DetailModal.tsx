@@ -6,6 +6,7 @@ import {
   Map, CheckCircle2, AlertTriangle, Radio
 } from 'lucide-react';
 import { Interruption, AreaCoordinate } from '@/types';
+import { useScrollLock } from '@/lib/use-scroll-lock';
 
 interface DetailModalProps {
   item: Interruption | null;
@@ -486,16 +487,19 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   isFavorite,
   onToggleFavorite,
 }) => {
+  // Lock background page scroll while modal is active
+  useScrollLock(isOpen && !!item);
+
   if (!isOpen || !item) return null;
 
   return (
     <div 
       onClick={onClose}
-      className="fixed inset-0 z-50 bg-[var(--sheet-scrim)] backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all"
+      className="fixed inset-0 z-50 bg-[var(--sheet-scrim)] backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all touch-none"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-[var(--elevated-surface)] border border-[var(--hairline)] rounded-t-[28px] sm:rounded-[24px] max-w-lg w-full p-5 sm:p-6 space-y-4 shadow-2xl max-h-[88vh] overflow-y-auto"
+        className="bg-[var(--elevated-surface)] border border-[var(--hairline)] rounded-t-[28px] sm:rounded-[24px] max-w-lg w-full p-5 sm:p-6 space-y-4 shadow-2xl max-h-[88vh] overflow-y-auto overscroll-contain touch-pan-y"
       >
         <DetailModalContent 
           key={item.id}
