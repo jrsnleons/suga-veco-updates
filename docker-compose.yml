@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  suga-app:
+    build: .
+    container_name: suga-veco-tracker
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    volumes:
+      # Persistent storage for SQLite database
+      - veco_data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+
+volumes:
+  veco_data:
+    driver: local
