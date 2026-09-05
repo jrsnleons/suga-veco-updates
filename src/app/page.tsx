@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Interruption } from '@/types';
 import { enrichWithLiveStatus } from '@/lib/status-utils';
@@ -17,20 +17,22 @@ export default function Home() {
   const [outages, setOutages] = useState<Interruption[]>([]);
   const [currentTab, setCurrentTab] = useState<ActiveTab>('status');
   const [searchQuery, setSearchQuery] = useState('');
-  const [favorites, setFavorites] = useState<string[]>(['Lahug', 'Guadalupe']);
+  // Lazy initial state avoids synchronous setState in useEffect under React 19
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return ['Lahug', 'Guadalupe'];
+    try {
+      const stored = localStorage.getItem('veco_favorites');
+      return stored ? JSON.parse(stored) : ['Lahug', 'Guadalupe'];
+    } catch {
+      return ['Lahug', 'Guadalupe'];
+    }
+  });
+
   const [selectedItem, setSelectedItem] = useState<Interruption | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPinDialogOpen, setIsPinDialogOpen] = useState(false);
   const [lastSyncedText, setLastSyncedText] = useState('Checking...');
   const [isSyncing, setIsSyncing] = useState(false);
-
-  // Load favorites from localStorage
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('veco_favorites');
-      if (stored) setFavorites(JSON.parse(stored));
-    } catch {}
-  }, []);
 
   const saveFavorites = (favs: string[]) => {
     setFavorites(favs);
@@ -49,39 +51,50 @@ export default function Home() {
     }
   };
 
-  // Fetch Outages from API
-  const fetchOutages = useCallback(async () => {
-    try {
-      const res = await fetch('/api/outages');
-      if (!res.ok) throw new Error('Failed to load data');
-      const data = await res.json();
-      if (data.data) {
-        setOutages(data.data.map((o: Interruption) => enrichWithLiveStatus(o)));
-      }
-      if (data.lastSynced) {
-        const d = new Date(data.lastSynced);
-        setLastSyncedText(`Synced ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
-      } else {
-        setLastSyncedText('Live');
-      }
-    } catch (err) {
-      console.warn('Could not fetch latest outages:', err);
-      setLastSyncedText('Offline mode');
-    }
-  }, []);
-
+  // Load Outages from API
   useEffect(() => {
-    fetchOutages();
-    const interval = setInterval(fetchOutages, 60000);
+    let ignore = false;
+
+    const loadOutages = async () => {
+      try {
+        const res = await fetch('/api/outages');
+        if (!res.ok) throw new Error('Failed to load data');
+        const data = await res.json();
+        if (ignore) return;
+
+        if (data.data) {
+          setOutages(data.data.map((o: Interruption) => enrichWithLiveStatus(o)));
+        }
+        if (data.lastSynced) {
+          const d = new Date(data.lastSynced);
+          setLastSyncedText(`Synced ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+        } else {
+          setLastSyncedText('Live');
+        }
+      } catch (err) {
+        if (!ignore) {
+          console.warn('Could not fetch latest outages:', err);
+          setLastSyncedText('Offline mode');
+        }
+      }
+    };
+
+    void loadOutages();
+    const interval = setInterval(loadOutages, 60000);
+
     // Periodically re-evaluate statuses in real time as the clock advances
     const clockTick = setInterval(() => {
-      setOutages(prev => prev.map(o => enrichWithLiveStatus(o)));
+      if (!ignore) {
+        setOutages(prev => prev.map(o => enrichWithLiveStatus(o)));
+      }
     }, 30000);
+
     return () => {
+      ignore = true;
       clearInterval(interval);
       clearInterval(clockTick);
     };
-  }, [fetchOutages]);
+  }, []);
 
   // Handle Manual Sync
   const handleSync = async () => {
@@ -116,72 +129,76 @@ export default function Home() {
   };
 
   return (
-    <div className="max-w-xl mx-auto space-y-5">
+    <div className="min-h-screen bg-[var(--system-bg)] text-[var(--label-primary)] transition-colors">
       <Header 
         lastSyncedText={lastSyncedText}
         isSyncing={isSyncing}
         onSync={handleSync}
       />
 
-      <AnimatePresence mode="wait">
-        {currentTab === 'status' && (
-          <motion.div 
-            key="status"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.16 }}
-            className="space-y-5"
-          >
-            <SavedPlaces 
-              favorites={favorites}
-              outages={outages}
-              onSelect={(brgy) => setSearchQuery(brgy)}
-              onOpenPinDialog={() => setIsPinDialogOpen(true)}
-              onRemove={handleToggleFavorite}
-            />
+      <main className="max-w-2xl sm:max-w-3xl md:max-w-4xl mx-auto px-4 sm:px-6 pt-4 pb-32 space-y-6">
+        <AnimatePresence mode="wait">
+          {currentTab === 'status' && (
+            <motion.div 
+              key="status"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.16 }}
+              className="space-y-6"
+            >
+              {/* Pinned Locations Section */}
+              <SavedPlaces 
+                favorites={favorites}
+                outages={outages}
+                onSelect={(brgy) => setSearchQuery(brgy)}
+                onOpenPinDialog={() => setIsPinDialogOpen(true)}
+                onRemove={handleToggleFavorite}
+              />
 
-            <StatusFeed 
-              outages={outages}
-              onOpenDetail={handleOpenDetail}
-              favorites={favorites}
-              onToggleFavorite={handleToggleFavorite}
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-            />
-          </motion.div>
-        )}
+              {/* Status Feed Section */}
+              <StatusFeed 
+                outages={outages}
+                onOpenDetail={handleOpenDetail}
+                favorites={favorites}
+                onToggleFavorite={handleToggleFavorite}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+              />
+            </motion.div>
+          )}
 
-        {currentTab === 'calendar' && (
-          <motion.div 
-            key="calendar"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.16 }}
-          >
-            <CalendarView 
-              outages={outages}
-              onOpenDetail={handleOpenDetail}
-            />
-          </motion.div>
-        )}
+          {currentTab === 'calendar' && (
+            <motion.div 
+              key="calendar"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.16 }}
+            >
+              <CalendarView 
+                outages={outages}
+                onOpenDetail={handleOpenDetail}
+              />
+            </motion.div>
+          )}
 
-        {currentTab === 'archive' && (
-          <motion.div 
-            key="archive"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.16 }}
-          >
-            <ArchiveList 
-              outages={outages}
-              onOpenDetail={handleOpenDetail}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+          {currentTab === 'archive' && (
+            <motion.div 
+              key="archive"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.16 }}
+            >
+              <ArchiveList 
+                outages={outages}
+                onOpenDetail={handleOpenDetail}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
 
       <DetailModal 
         item={selectedItem}

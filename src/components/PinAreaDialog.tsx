@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Search, MapPin, Check, X, Plus } from 'lucide-react';
 
 interface PinAreaDialogProps {
@@ -110,140 +109,141 @@ export const PinAreaDialog: React.FC<PinAreaDialogProps> = ({
   const q = search.toLowerCase().trim();
 
   return (
-    <AnimatePresence>
-      <div 
-        onClick={onClose}
-        className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
+    <div 
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-[var(--sheet-scrim)] backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[var(--elevated-surface)] border border-[var(--hairline)] rounded-t-[28px] sm:rounded-[24px] max-w-md w-full p-5 space-y-4 shadow-2xl max-h-[85vh] flex flex-col"
       >
-        <motion.div
-          initial={{ opacity: 0, y: 20, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 20, scale: 0.98 }}
-          transition={{ duration: 0.2 }}
-          onClick={(e) => e.stopPropagation()}
-          className="bg-zinc-900 border border-zinc-800 rounded-t-2xl sm:rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl max-h-[85vh] flex flex-col"
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                <MapPin className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-zinc-100">Pin a Favorite Place</h3>
-                <p className="text-[11px] text-zinc-400">Pin entire cities or individual barangays to monitor.</p>
-              </div>
+        {/* iOS Sheet Grabber Bar */}
+        <div className="w-9 h-1 rounded-full bg-[var(--label-tertiary)]/40 mx-auto -mt-1 mb-1" />
+
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-[var(--accent-blue)]/12 text-[var(--accent-blue)] flex items-center justify-center font-semibold">
+              <MapPin className="w-4 h-4 fill-current text-[var(--accent-blue)]" />
             </div>
-            <button 
-              onClick={onClose} 
-              className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div>
+              <h3 className="text-[17px] font-semibold text-[var(--label-primary)]">Pin Location</h3>
+              <p className="text-[12px] text-[var(--label-secondary-alpha)]">Select your city or barangay to monitor.</p>
+            </div>
           </div>
 
-          {/* Search Input */}
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-zinc-500" />
+          <button 
+            onClick={onClose} 
+            className="w-8 h-8 rounded-full bg-[var(--tertiary-fill)] text-[var(--label-secondary)] hover:text-[var(--label-primary)] flex items-center justify-center cursor-pointer ios-press"
+            aria-label="Close dialog"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Search Input */}
+        <div className="relative">
+          <div className="flex items-center h-10 rounded-xl bg-[var(--tertiary-fill)] px-3 focus-within:ring-2 focus-within:ring-[var(--accent-blue)]/40 transition-all">
+            <Search className="w-4 h-4 text-[var(--label-tertiary)] flex-shrink-0" />
             <input 
-              type="text"
+              type="text" 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search Liloan, Consolacion, barangay..."
-              className="w-full pl-9 pr-8 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-zinc-700"
+              placeholder="Search Cebu City, Lahug, Mandaue..." 
+              className="w-full pl-2.5 pr-6 bg-transparent text-[14px] text-[var(--label-primary)] placeholder:text-[var(--label-tertiary)] focus:outline-none"
             />
             {search && (
               <button 
                 onClick={() => setSearch('')}
-                className="absolute right-2.5 top-2.5 text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer"
+                className="w-4 h-4 rounded-full bg-[var(--label-tertiary)]/30 hover:bg-[var(--label-tertiary)]/50 text-[var(--label-primary)] flex items-center justify-center text-xs cursor-pointer"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-2.5 h-2.5" />
               </button>
             )}
           </div>
+        </div>
 
-          {/* Locations List */}
-          <div className="overflow-y-auto custom-scrollbar flex-1 space-y-4 pr-1 max-h-72">
-            {CEBU_LOCATIONS.map(group => {
-              const cityMatches = !q || group.city.toLowerCase().includes(q);
-              const matchingBrgys = group.barangays.filter(b => 
-                !q || b.toLowerCase().includes(q) || group.city.toLowerCase().includes(q)
-              );
+        {/* Locations List */}
+        <div className="overflow-y-auto flex-1 space-y-4 pr-1 max-h-72">
+          {CEBU_LOCATIONS.map(group => {
+            const cityMatches = !q || group.city.toLowerCase().includes(q);
+            const matchingBrgys = group.barangays.filter(b => 
+              !q || b.toLowerCase().includes(q) || group.city.toLowerCase().includes(q)
+            );
 
-              if (!cityMatches && matchingBrgys.length === 0) return null;
+            if (!cityMatches && matchingBrgys.length === 0) return null;
 
-              const isCityPinned = favorites.includes(group.city);
+            const isCityPinned = favorites.includes(group.city);
 
-              return (
-                <div key={group.city} className="space-y-1.5">
-                  {/* City Header with Pin City Button */}
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-[11px] font-semibold text-zinc-300">
-                      {group.city}
-                    </span>
-                    <button
-                      onClick={() => onToggleFavorite(group.city)}
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-all flex items-center gap-1 cursor-pointer border ${
-                        isCityPinned
-                          ? 'bg-amber-950/60 border-amber-800/80 text-amber-300 shadow-xs'
-                          : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700'
-                      }`}
-                    >
-                      {isCityPinned ? (
-                        <>
-                          <Check className="w-2.5 h-2.5 text-amber-400" />
-                          <span>Pinned</span>
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="w-2.5 h-2.5 text-zinc-500" />
-                          <span>Pin Whole City</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Barangays Grid */}
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {matchingBrgys.map(brgy => {
-                      const isPinned = favorites.includes(brgy);
-                      return (
-                        <button
-                          key={brgy}
-                          onClick={() => onToggleFavorite(brgy)}
-                          className={`p-2 rounded-lg text-left text-xs font-medium transition-all flex items-center justify-between cursor-pointer border ${
-                            isPinned
-                              ? 'bg-amber-950/40 border-amber-800/60 text-amber-300'
-                              : 'bg-zinc-950/60 border-zinc-800/80 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-800/40'
-                          }`}
-                        >
-                          <span className="truncate">{brgy}</span>
-                          {isPinned ? (
-                            <Check className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                          ) : (
-                            <span className="text-[10px] text-zinc-600 group-hover:text-zinc-400">+</span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+            return (
+              <div key={group.city} className="space-y-1.5">
+                {/* City Header with Pin City Button */}
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[12px] font-semibold text-[var(--label-primary)] uppercase tracking-wider">
+                    {group.city}
+                  </span>
+                  <button
+                    onClick={() => onToggleFavorite(group.city)}
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all flex items-center gap-1 cursor-pointer ios-press ${
+                      isCityPinned
+                        ? 'bg-[var(--accent-blue)] text-white shadow-xs'
+                        : 'bg-[var(--tertiary-fill)] text-[var(--label-secondary)] hover:text-[var(--label-primary)]'
+                    }`}
+                  >
+                    {isCityPinned ? (
+                      <>
+                        <Check className="w-3 h-3 text-white stroke-[2.5]" />
+                        <span>Pinned City</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-3 h-3 stroke-[2.5]" />
+                        <span>Pin Whole City</span>
+                      </>
+                    )}
+                  </button>
                 </div>
-              );
-            })}
-          </div>
 
-          {/* Footer */}
-          <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-[11px] text-zinc-500">
-            <span>{favorites.length} places pinned</span>
-            <button 
-              onClick={onClose}
-              className="px-3 py-1.5 rounded-lg bg-zinc-100 text-zinc-900 font-semibold text-xs hover:bg-zinc-200 transition-colors cursor-pointer"
-            >
-              Done
-            </button>
-          </div>
-        </motion.div>
+                {/* Barangays Grid */}
+                <div className="grid grid-cols-2 gap-1.5">
+                  {matchingBrgys.map(brgy => {
+                    const isPinned = favorites.includes(brgy);
+                    return (
+                      <button
+                        key={brgy}
+                        onClick={() => onToggleFavorite(brgy)}
+                        className={`p-2.5 rounded-xl text-left text-xs font-medium transition-all flex items-center justify-between cursor-pointer border ios-press ${
+                          isPinned
+                            ? 'bg-[var(--accent-blue)]/12 border-[var(--accent-blue)]/30 text-[var(--accent-blue)]'
+                            : 'bg-[var(--secondary-bg)] border-[var(--hairline)] text-[var(--label-primary)] hover:border-[var(--label-tertiary)]'
+                        }`}
+                      >
+                        <span className="truncate">{brgy}</span>
+                        {isPinned ? (
+                          <Check className="w-3.5 h-3.5 text-[var(--accent-blue)] stroke-[2.5] flex-shrink-0" />
+                        ) : (
+                          <span className="text-[12px] text-[var(--label-tertiary)]">+</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer */}
+        <div className="pt-2 border-t border-[var(--hairline)] flex items-center justify-between text-xs text-[var(--label-secondary-alpha)]">
+          <span>{favorites.length} places pinned</span>
+          <button 
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl bg-[var(--accent-blue)] text-white font-semibold text-xs hover:opacity-90 transition-opacity cursor-pointer ios-press"
+          >
+            Done
+          </button>
+        </div>
       </div>
-    </AnimatePresence>
+    </div>
   );
 };

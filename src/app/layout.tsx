@@ -1,9 +1,24 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Suga — Cebu Power & Brownout Tracker',
-  description: 'Clean, minimalist, and searchable power interruption schedule tracker for Visayan Electric (VECO) in Metro Cebu.',
+  title: 'SUGA — Cebu Power & Brownout Tracker',
+  description: 'Clean, native iOS-tier power interruption schedule and live telemetry tracker for Visayan Electric (VECO) in Metro Cebu.',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'SUGA Grid',
+  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#F2F2F7' },
+    { media: '(prefers-color-scheme: dark)', color: '#000000' },
+  ],
 };
 
 export default function RootLayout({
@@ -12,8 +27,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="antialiased min-h-screen bg-zinc-950 text-zinc-100 p-3 sm:p-6 pb-28 select-none">
+    <html lang="en" suppressHydrationWarning>
+      <body className="antialiased min-h-screen bg-[var(--system-bg)] text-[var(--label-primary)]">
         {children}
       </body>
     </html>

@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle2, X, Clock } from 'lucide-react';
+import { ChevronRight, CheckCircle2, X, Clock, Archive } from 'lucide-react';
 import { Interruption } from '@/types';
 
 interface ArchiveListProps {
@@ -20,86 +19,121 @@ export const ArchiveList: React.FC<ArchiveListProps> = ({ outages, onOpenDetail 
     return o.outcome === filter;
   });
 
-  function getBadgeClass(status: string) {
+  function getStatusStyle(status: string) {
     switch (status) {
-      case 'restored': return 'bg-emerald-950/70 text-emerald-300 border border-emerald-800/40';
-      case 'cancelled': return 'bg-zinc-900 text-zinc-400 border border-zinc-800 line-through';
-      case 'completed': return 'bg-sky-950/70 text-sky-300 border border-sky-800/40';
-      default: return 'bg-zinc-800 text-zinc-300 border border-zinc-700/50';
-    }
-  }
-
-  function getStatusIcon(status: string) {
-    switch (status) {
-      case 'restored': return <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />;
-      case 'cancelled': return <X className="w-2.5 h-2.5 text-zinc-400" />;
-      default: return <Clock className="w-2.5 h-2.5 text-sky-400" />;
+      case 'restored':
+      case 'completed':
+        return {
+          pill: 'bg-[var(--accent-green)]/12 text-[var(--accent-green)]',
+          icon: <CheckCircle2 className="w-3 h-3 text-[var(--accent-green)]" />,
+        };
+      case 'cancelled':
+        return {
+          pill: 'bg-[var(--tertiary-fill)] text-[var(--label-tertiary)] line-through',
+          icon: <X className="w-3 h-3 text-[var(--label-tertiary)]" />,
+        };
+      default:
+        return {
+          pill: 'bg-[var(--accent-blue)]/12 text-[var(--accent-blue)]',
+          icon: <Clock className="w-3 h-3 text-[var(--accent-blue)]" />,
+        };
     }
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight text-zinc-100">Outage Archive</h2>
-          <p className="text-xs text-zinc-400">Clean summary of historical records. Tap any row for full scope.</p>
-        </div>
-        <span className="text-xs px-2.5 py-1 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono">
-          {filtered.length} Records
-        </span>
-      </div>
+    <div className="space-y-5">
+      {/* Editorial Header */}
+      <section className="space-y-1 pt-1">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-[12px] font-semibold tracking-wider text-[var(--accent-blue)] uppercase">
+              Perpetual Log
+            </span>
+            <h2 className="ios-large-title text-[28px] sm:text-[34px] tracking-tight">
+              History
+            </h2>
+          </div>
 
-      {/* Simple Filter Pills */}
-      <div className="flex gap-1.5 overflow-x-auto text-xs pb-1">
-        {(['all', 'restored', 'cancelled', 'completed'] as const).map(f => (
+          <span className="text-[11px] px-2.5 py-1 rounded-full bg-[var(--tertiary-fill)] text-[var(--label-secondary)] font-medium">
+            {filtered.length} Recorded
+          </span>
+        </div>
+        <p className="ios-subheadline text-xs sm:text-[15px] pt-0.5 leading-relaxed">
+          Historical record of resolved maintenance, restored feeders, and past outages across Metro Cebu.
+        </p>
+      </section>
+
+      {/* Apple Native Segmented Control */}
+      <div className="inline-flex p-0.5 rounded-lg bg-[var(--tertiary-fill)] text-xs font-medium w-full sm:w-auto">
+        {(['all', 'restored', 'completed', 'cancelled'] as const).map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-3 py-1 rounded-md font-medium text-xs transition-all cursor-pointer ${
+            className={`flex-1 sm:flex-none px-3 py-1.5 rounded-md transition-all cursor-pointer ${
               filter === f
-                ? 'bg-zinc-800 text-zinc-100 border border-zinc-700/50'
-                : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                ? 'bg-[var(--secondary-bg)] text-[var(--label-primary)] shadow-xs font-semibold'
+                : 'text-[var(--label-secondary-alpha)] hover:text-[var(--label-primary)]'
             }`}
           >
-            {f === 'all' ? 'All' : f === 'restored' ? 'Restored' : f === 'cancelled' ? 'Cancelled' : 'Completed'}
+            {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
         ))}
       </div>
 
-      {/* High-Density Concise Summary List */}
-      <div className="divide-y divide-zinc-800/60 rounded-xl bg-zinc-900/50 border border-zinc-800/80 overflow-hidden">
+      {/* Inset Grouped Table Container */}
+      <div className="ios-grouped-card">
         {filtered.length === 0 ? (
-          <div className="p-8 text-center text-xs text-zinc-500">
-            No archived records found for this filter.
+          <div className="p-8 text-center space-y-2">
+            <Archive className="w-8 h-8 text-[var(--label-tertiary)] mx-auto opacity-50" />
+            <div className="text-[16px] font-semibold text-[var(--label-primary)]">
+              No historical records
+            </div>
+            <div className="text-xs text-[var(--label-secondary-alpha)]">
+              No archives found matching the current filter.
+            </div>
           </div>
         ) : (
-          filtered.map(item => (
-            <motion.div 
-              key={item.id}
-              whileHover={{ backgroundColor: 'rgba(39, 39, 42, 0.4)' }}
-              onClick={() => onOpenDetail(item)}
-              className="p-3.5 sm:px-4 cursor-pointer transition-colors flex items-center justify-between gap-3 group"
-            >
-              <div className="space-y-0.5 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-zinc-200 truncate group-hover:text-blue-400 transition-colors">
-                    {item.area}
-                  </span>
-                  <span className="text-[11px] text-zinc-500 hidden sm:inline">• {item.city}</span>
-                </div>
-                <p className="text-[11px] text-zinc-500 truncate max-w-sm">{item.reason}</p>
-              </div>
+          filtered.map((item, index) => {
+            const style = getStatusStyle(item.status);
 
-              <div className="flex items-center gap-2.5 flex-shrink-0 text-right">
-                <span className="text-[11px] font-mono text-zinc-500">{item.dateLabel}</span>
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium ${getBadgeClass(item.status)}`}>
-                  {getStatusIcon(item.status)}
-                  <span>{item.statusLabel}</span>
-                </span>
-                <ArrowRight className="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-300 transition-colors" />
-              </div>
-            </motion.div>
-          ))
+            return (
+              <React.Fragment key={item.id}>
+                {index > 0 && <div className="ios-inset-divider" style={{ marginLeft: '16px' }} />}
+
+                <div 
+                  onClick={() => onOpenDetail(item)}
+                  className="px-4 py-3 min-h-[56px] flex items-center justify-between gap-3 hover:bg-[var(--tertiary-fill)] transition-colors cursor-pointer group ios-press-subtle"
+                >
+                  <div className="space-y-0.5 min-w-0 pr-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[16px] font-semibold text-[var(--label-primary)] group-hover:text-[var(--accent-blue)] transition-colors truncate">
+                        {item.area}
+                      </span>
+                      <span className="text-[12px] text-[var(--label-secondary-alpha)] hidden sm:inline">
+                        • {item.city}
+                      </span>
+                    </div>
+                    <p className="text-[12px] text-[var(--label-secondary-alpha)] truncate max-w-sm sm:max-w-md">
+                      {item.reason}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 flex-shrink-0 text-right">
+                    <span className="text-[12px] text-[var(--label-secondary-alpha)] hidden xs:inline">
+                      {item.dateLabel}
+                    </span>
+
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium ${style.pill}`}>
+                      {style.icon}
+                      <span className="capitalize">{item.statusLabel}</span>
+                    </span>
+
+                    <ChevronRight className="w-4 h-4 text-[var(--label-tertiary)] group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+              </React.Fragment>
+            );
+          })
         )}
       </div>
     </div>

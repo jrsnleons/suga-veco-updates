@@ -1,10 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
 import { 
-  Search, X, Clock, ArrowRight, Radio, 
-  AlertTriangle, CheckCircle2, Star, LightbulbOff
+  Search, X, Clock, ChevronRight, Radio, 
+  AlertTriangle, CheckCircle2, MapPin, ShieldCheck
 } from 'lucide-react';
 import { Interruption } from '@/types';
 
@@ -25,7 +24,7 @@ export const StatusFeed: React.FC<StatusFeedProps> = ({
   searchQuery,
   setSearchQuery,
 }) => {
-  const [filter, setFilter] = useState<'all' | 'ongoing' | 'delayed' | 'cancelled'>('all');
+  const [filter, setFilter] = useState<'all' | 'ongoing' | 'delayed' | 'upcoming'>('all');
 
   const activeOutages = outages.filter(o => !o.isPast);
   const q = searchQuery.toLowerCase().trim();
@@ -66,226 +65,296 @@ export const StatusFeed: React.FC<StatusFeedProps> = ({
 
   const hit = q && filtered.length > 0 ? filtered[0] : null;
 
-  function getBadgeClass(status: string) {
-    switch (status) {
-      case 'ongoing': return 'bg-rose-950/70 text-rose-300 border border-rose-800/40';
-      case 'delayed': return 'bg-amber-950/70 text-amber-300 border border-amber-800/40';
-      case 'cancelled': return 'bg-zinc-900 text-zinc-400 border border-zinc-800 line-through';
-      default: return 'bg-blue-950/70 text-blue-300 border border-blue-800/40';
-    }
-  }
+  // Counts for Apple Health style metric summary cards
+  const ongoingCount = activeOutages.filter(o => o.status === 'ongoing').length;
+  const delayedCount = activeOutages.filter(o => o.status === 'delayed').length;
+  const upcomingCount = activeOutages.filter(o => o.status === 'upcoming').length;
 
-  function getStatusIcon(status: string) {
+  function getStatusStyle(status: string) {
     switch (status) {
-      case 'ongoing': return <Radio className="w-3 h-3 text-rose-400 animate-pulse" />;
-      case 'delayed': return <AlertTriangle className="w-3 h-3 text-amber-400" />;
-      case 'cancelled': return <X className="w-3 h-3 text-zinc-400" />;
-      default: return <Clock className="w-3 h-3 text-blue-400" />;
+      case 'ongoing':
+        return {
+          pill: 'bg-[var(--accent-red)]/12 text-[var(--accent-red)]',
+          icon: <Radio className="w-3 h-3 text-[var(--accent-red)] animate-pulse" />,
+        };
+      case 'delayed':
+        return {
+          pill: 'bg-[var(--accent-orange)]/15 text-[var(--accent-orange)]',
+          icon: <AlertTriangle className="w-3 h-3 text-[var(--accent-orange)]" />,
+        };
+      case 'cancelled':
+        return {
+          pill: 'bg-[var(--tertiary-fill)] text-[var(--label-tertiary)] line-through',
+          icon: <X className="w-3 h-3 text-[var(--label-tertiary)]" />,
+        };
+      default:
+        return {
+          pill: 'bg-[var(--accent-blue)]/12 text-[var(--accent-blue)]',
+          icon: <Clock className="w-3 h-3 text-[var(--accent-blue)]" />,
+        };
     }
   }
 
   return (
-    <div className="space-y-5">
-      {/* Search Hero */}
-      <div className="text-center space-y-2.5 pt-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-100">
-          Is your power affected?
-        </h1>
-        <p className="text-xs sm:text-sm text-zinc-400 max-w-sm mx-auto">
-          Type your barangay to instantly look up scheduled maintenance, delays, or outages.
-        </p>
+    <div className="space-y-6">
+      {/* iOS Large Title Hero */}
+      <section className="space-y-3 pt-1">
+        <div>
+          <span className="text-[12px] font-semibold tracking-wider text-[var(--accent-blue)] uppercase">
+            Visayan Electric Grid
+          </span>
+          <h1 className="ios-large-title text-[30px] sm:text-[34px] tracking-tight">
+            Grid Radar
+          </h1>
+          <p className="ios-subheadline text-xs sm:text-[15px] pt-1 leading-relaxed">
+            Instant outage monitoring, live scheduled feeder maintenance, and restoration tracking across Metro Cebu.
+          </p>
+        </div>
 
-        <div className="relative max-w-md mx-auto pt-1">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
-            <Search className="w-4 h-4" />
+        {/* Apple Native UISearchBar */}
+        <div className="relative pt-1">
+          <div className="relative flex items-center h-11 rounded-xl bg-[var(--tertiary-fill)] px-3 focus-within:ring-2 focus-within:ring-[var(--accent-blue)]/40 transition-all">
+            <Search className="w-4 h-4 text-[var(--label-tertiary)] flex-shrink-0" />
+            <input 
+              type="text" 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search your barangay (e.g. Lahug, Guadalupe, Maguikay)..." 
+              className="w-full pl-2.5 pr-8 bg-transparent text-[15px] text-[var(--label-primary)] placeholder:text-[var(--label-tertiary)] focus:outline-none"
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="w-5 h-5 rounded-full bg-[var(--label-tertiary)]/30 hover:bg-[var(--label-tertiary)]/50 text-[var(--label-primary)] flex items-center justify-center text-xs cursor-pointer transition-colors"
+                aria-label="Clear search"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
           </div>
-          <input 
-            type="text" 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search your barangay (e.g. Lahug, Guadalupe, Maguikay)..." 
-            className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-sm shadow-xs focus:outline-none focus:ring-1 focus:ring-zinc-400 focus:border-zinc-400 text-zinc-100 transition-all"
-          />
-          {searchQuery && (
-            <button 
-              onClick={() => setSearchQuery('')}
-              className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+
+          {/* Quick Filter Barangay Pills */}
+          <div className="flex items-center gap-1.5 flex-wrap pt-2 px-1">
+            <span className="text-[11px] font-medium text-[var(--label-secondary-alpha)]">Popular:</span>
+            {['Lahug', 'Guadalupe', 'Mabolo', 'Maguikay', 'Apas'].map(brgy => (
+              <button 
+                key={brgy}
+                onClick={() => setSearchQuery(brgy)}
+                className="px-2.5 py-1 rounded-full text-[12px] font-medium bg-[var(--secondary-bg)] border border-[var(--hairline)] hover:border-[var(--accent-blue)] text-[var(--label-secondary)] hover:text-[var(--accent-blue)] transition-colors cursor-pointer ios-press"
+              >
+                {brgy}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Apple Health-Style Summary Metric Cards */}
+      <section className="grid grid-cols-3 gap-2.5">
+        <div className="ios-grouped-card p-3 sm:p-3.5 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-medium text-[var(--label-secondary-alpha)] uppercase">In Progress</span>
+            <Radio className={`w-3.5 h-3.5 ${ongoingCount > 0 ? 'text-[var(--accent-red)] animate-pulse' : 'text-[var(--accent-green)]'}`} />
+          </div>
+          <div className={`text-xl sm:text-2xl font-bold tracking-tight ${ongoingCount > 0 ? 'text-[var(--accent-red)]' : 'text-[var(--accent-green)]'}`}>
+            {ongoingCount}
+          </div>
+          <span className="text-[10px] text-[var(--label-secondary-alpha)] block truncate">
+            {ongoingCount > 0 ? 'Active interrupts' : 'All lines nominal'}
+          </span>
         </div>
 
-        <div className="flex items-center justify-center gap-1.5 flex-wrap text-xs text-zinc-500 pt-0.5">
-          <span>Quick:</span>
-          {['Lahug', 'Guadalupe', 'Maguikay', 'Cadulawan'].map(brgy => (
-            <button 
-              key={brgy}
-              onClick={() => setSearchQuery(brgy)}
-              className="px-2.5 py-0.5 rounded-md bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
-            >
-              {brgy}
-            </button>
-          ))}
+        <div className="ios-grouped-card p-3 sm:p-3.5 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-medium text-[var(--label-secondary-alpha)] uppercase">Delayed</span>
+            <AlertTriangle className="w-3.5 h-3.5 text-[var(--accent-orange)]" />
+          </div>
+          <div className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--accent-orange)]">
+            {delayedCount}
+          </div>
+          <span className="text-[10px] text-[var(--label-secondary-alpha)] block truncate">
+            Pending start
+          </span>
         </div>
-      </div>
 
-      {/* Direct Answer Box */}
+        <div className="ios-grouped-card p-3 sm:p-3.5 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-medium text-[var(--label-secondary-alpha)] uppercase">Upcoming</span>
+            <Clock className="w-3.5 h-3.5 text-[var(--accent-blue)]" />
+          </div>
+          <div className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--accent-blue)]">
+            {upcomingCount}
+          </div>
+          <span className="text-[10px] text-[var(--label-secondary-alpha)] block truncate">
+            7-day schedule
+          </span>
+        </div>
+      </section>
+
+      {/* Direct Search Diagnostic Callout */}
       {q && (
-        <motion.div 
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={`p-4 rounded-xl border transition-all ${
-            hit 
-              ? (hit.status === 'cancelled' 
-                  ? 'bg-zinc-900 border-zinc-800' 
-                  : hit.status === 'ongoing' 
-                    ? 'bg-rose-950/30 border-rose-800/40' 
-                    : hit.status === 'delayed'
-                      ? 'bg-amber-950/30 border-amber-800/40'
-                      : 'bg-blue-950/20 border-blue-800/30') 
-              : 'bg-emerald-950/20 border-emerald-800/30'
-          }`}
-        >
+        <div className="ios-grouped-card p-4 transition-all">
           {hit ? (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className={`flex items-center gap-1.5 text-xs font-medium ${
-                  hit.status === 'cancelled' 
-                    ? 'text-zinc-400' 
-                    : hit.status === 'ongoing' 
-                      ? 'text-rose-400' 
-                      : hit.status === 'delayed'
-                        ? 'text-amber-400'
-                        : 'text-blue-400'
-                }`}>
-                  {getStatusIcon(hit.status)}
-                  <span>Advisory for &quot;{searchQuery}&quot;</span>
+                <div className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full ${getStatusStyle(hit.status).pill}`}>
+                  {getStatusStyle(hit.status).icon}
+                  <span>Advisory Active for &quot;{searchQuery}&quot;</span>
                 </div>
+
                 <button 
                   onClick={() => onToggleFavorite(searchQuery)}
-                  className="text-xs font-medium text-zinc-400 hover:text-amber-400 transition-colors flex items-center gap-1 cursor-pointer"
+                  className="text-xs font-medium text-[var(--accent-blue)] hover:opacity-80 transition-opacity flex items-center gap-1 cursor-pointer ios-press"
                 >
-                  <Star className={`w-3.5 h-3.5 ${favorites.includes(searchQuery) ? 'fill-amber-400 text-amber-400' : ''}`} />
-                  <span>{favorites.includes(searchQuery) ? 'Pinned' : '+ Pin'}</span>
+                  <MapPin className="w-3.5 h-3.5 fill-current" />
+                  <span>{favorites.includes(searchQuery) ? 'Pinned' : '+ Pin Location'}</span>
                 </button>
               </div>
-              <div className="text-sm font-semibold text-zinc-100">
-                {hit.statusLabel} in {hit.area} ({hit.dateLabel})
+
+              <div className="text-[16px] font-semibold text-[var(--label-primary)]">
+                {hit.statusLabel}: {hit.area} ({hit.city})
               </div>
-              <div className="text-xs text-zinc-400">
-                {hit.time} • {hit.reason}
+
+              <div className="text-xs text-[var(--label-secondary-alpha)] flex items-center gap-2">
+                <span>{hit.dateLabel}</span>
+                <span>•</span>
+                <span className="font-medium text-[var(--label-primary)]">{hit.time}</span>
               </div>
+
               <button 
                 onClick={() => onOpenDetail(hit)} 
-                className="text-xs text-blue-400 hover:underline font-medium inline-flex items-center gap-1 pt-1 cursor-pointer"
+                className="text-xs font-medium text-[var(--accent-blue)] hover:underline inline-flex items-center gap-1 pt-1 cursor-pointer"
               >
-                <span>View full streets & zone map</span>
-                <ArrowRight className="w-3 h-3" />
+                <span>Inspect designated feeder streets & zone map</span>
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
           ) : (
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-400">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>All Clear in &quot;{searchQuery}&quot;</span>
+                <div className="inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--accent-green)]/12 text-[var(--accent-green)]">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[var(--accent-green)]" />
+                  <span>All Clear for &quot;{searchQuery}&quot;</span>
                 </div>
+
                 <button 
                   onClick={() => onToggleFavorite(searchQuery)}
-                  className="text-xs font-medium text-zinc-400 hover:text-amber-400 transition-colors flex items-center gap-1 cursor-pointer"
+                  className="text-xs font-medium text-[var(--accent-blue)] hover:opacity-80 transition-opacity flex items-center gap-1 cursor-pointer ios-press"
                 >
-                  <Star className={`w-3.5 h-3.5 ${favorites.includes(searchQuery) ? 'fill-amber-400 text-amber-400' : ''}`} />
-                  <span>{favorites.includes(searchQuery) ? 'Pinned' : '+ Pin'}</span>
+                  <MapPin className="w-3.5 h-3.5 fill-current" />
+                  <span>{favorites.includes(searchQuery) ? 'Pinned' : '+ Pin Location'}</span>
                 </button>
               </div>
-              <div className="text-sm font-semibold text-zinc-100">No power interruptions scheduled.</div>
-              <div className="text-xs text-zinc-400">Power is normal according to latest VECO feed.</div>
+
+              <div className="text-[16px] font-semibold text-[var(--label-primary)]">
+                No active interruptions recorded.
+              </div>
+              <div className="text-xs text-[var(--label-secondary-alpha)]">
+                Normal power supply verified with the latest Visayan Electric dispatch.
+              </div>
             </div>
           )}
-        </motion.div>
+        </div>
       )}
 
-      {/* Filter Tabs */}
-      <div className="flex items-center justify-between pt-1">
+      {/* Section Filter & Segmented Control */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pt-1">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-zinc-300">Active Advisories</span>
+          <span className="text-[12px] font-medium text-[var(--label-secondary-alpha)] uppercase tracking-wider">
+            FEED ADVISORIES ({filtered.length})
+          </span>
           {activeOutages.some(o => o.status === 'ongoing') && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-950/80 border border-rose-800/60 text-[10px] text-rose-300 font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse"></span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--accent-red)]/12 text-[10px] text-[var(--accent-red)] font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-red)] animate-pulse" />
               <span>In Progress Now</span>
             </span>
           )}
         </div>
-        <div className="inline-flex p-1 rounded-lg bg-zinc-900 border border-zinc-800/80 text-[11px]">
-          {(['all', 'ongoing', 'delayed', 'cancelled'] as const).map(f => (
+
+        {/* Apple Native Segmented Control */}
+        <div className="inline-flex p-0.5 rounded-lg bg-[var(--tertiary-fill)] text-xs font-medium">
+          {(['all', 'ongoing', 'delayed', 'upcoming'] as const).map(f => (
             <button 
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+              className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
                 filter === f 
-                  ? 'bg-zinc-800 text-zinc-100 font-medium shadow-xs' 
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  ? 'bg-[var(--secondary-bg)] text-[var(--label-primary)] shadow-xs font-semibold' 
+                  : 'text-[var(--label-secondary-alpha)] hover:text-[var(--label-primary)]'
               }`}
             >
-              {f === 'all' ? 'All' : f === 'ongoing' ? 'In Progress' : f.charAt(0).toUpperCase() + f.slice(1)}
+              {f === 'all' ? 'All' : f === 'ongoing' ? 'In Progress' : f === 'delayed' ? 'Delayed' : 'Upcoming'}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Outage Cards List */}
+      {/* Inset Grouped / Elevated Outage Cards */}
       <div className="space-y-3">
         {filtered.length === 0 ? (
-          <div className="p-8 text-center rounded-xl border border-zinc-800/80 bg-zinc-900/40 space-y-1.5">
-            <LightbulbOff className="w-6 h-6 text-zinc-500 mx-auto" />
-            <div className="text-sm font-medium text-zinc-300">No matching advisories</div>
-            <div className="text-xs text-zinc-500">All clear for this filter selection.</div>
+          <div className="ios-grouped-card p-8 text-center space-y-2">
+            <ShieldCheck className="w-8 h-8 text-[var(--accent-green)] mx-auto" />
+            <div className="text-[17px] font-semibold text-[var(--label-primary)]">
+              No matching advisories
+            </div>
+            <div className="text-xs text-[var(--label-secondary-alpha)] max-w-xs mx-auto">
+              All electrical feeder lines are operating normally for this selection.
+            </div>
           </div>
         ) : (
-          filtered.map(item => (
-            <motion.article 
-              key={item.id}
-              whileHover={{ y: -1 }}
-              onClick={() => onOpenDetail(item)}
-              className="glass-card rounded-xl p-4 sm:p-5 transition-all space-y-3 cursor-pointer group"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="text-xs text-zinc-400 font-medium">{item.city} • {item.dateLabel}</div>
-                  <h3 className="text-base font-semibold text-zinc-100 tracking-tight mt-0.5 group-hover:text-blue-400 transition-colors">
-                    {item.area}
-                  </h3>
+          filtered.map(item => {
+            const style = getStatusStyle(item.status);
+
+            return (
+              <article 
+                key={item.id}
+                onClick={() => onOpenDetail(item)}
+                className="ios-grouped-card p-4 sm:p-5 hover:border-[var(--accent-blue)]/50 transition-all space-y-3 cursor-pointer group ios-press-subtle"
+              >
+                {/* Top Row: City/Date + Status Pill */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <div className="text-[12px] font-medium text-[var(--label-secondary-alpha)]">
+                      {item.city} • {item.dateLabel}
+                    </div>
+                    <h3 className="text-[17px] font-semibold text-[var(--label-primary)] group-hover:text-[var(--accent-blue)] transition-colors leading-snug">
+                      {item.area}
+                    </h3>
+                  </div>
+
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium ${style.pill} flex-shrink-0`}>
+                    {style.icon}
+                    <span>{item.statusLabel}</span>
+                  </span>
                 </div>
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium ${getBadgeClass(item.status)} flex-shrink-0`}>
-                  {getStatusIcon(item.status)}
-                  <span>{item.statusLabel}</span>
-                </span>
-              </div>
 
-              <div className="text-xs font-medium text-zinc-300 flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-400 flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-zinc-500" />
-                  <span>{item.time}</span>
-                </span>
-                <span className="text-zinc-500 truncate text-[11px]">
-                  {item.streets}
-                </span>
-              </div>
+                {/* Time & Streets */}
+                <div className="text-xs text-[var(--label-secondary-alpha)] flex items-center gap-2 flex-wrap">
+                  <span className="px-2 py-0.5 rounded-md bg-[var(--tertiary-fill)] text-[var(--label-primary)] font-medium inline-flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-[var(--label-tertiary)]" />
+                    <span>{item.time}</span>
+                  </span>
+                  <span className="truncate text-xs">
+                    {item.streets || 'Portions of affected feeder lines'}
+                  </span>
+                </div>
 
-              <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2">
-                {item.reason}
-              </p>
+                {/* Scope & Reason */}
+                <p className="text-xs text-[var(--label-secondary-alpha)] leading-relaxed line-clamp-2">
+                  {item.reason}
+                </p>
 
-              <div className="pt-2 border-t border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-500">
-                <span>Posted {item.fbTime}</span>
-                <span className="text-blue-400 group-hover:underline font-medium inline-flex items-center gap-1">
-                  <span>View map & details</span>
-                  <ArrowRight className="w-3 h-3" />
-                </span>
-              </div>
-            </motion.article>
-          ))
+                {/* Footer disclosure */}
+                <div className="pt-2 border-t border-[var(--hairline)] flex items-center justify-between text-[11px] text-[var(--label-secondary-alpha)]">
+                  <span>VECO Dispatch {item.fbTime}</span>
+                  <span className="text-[var(--accent-blue)] font-medium inline-flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                    <span>Inspect scope & map</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </span>
+                </div>
+              </article>
+            );
+          })
         )}
       </div>
     </div>

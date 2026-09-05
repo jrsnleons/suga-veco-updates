@@ -1,45 +1,306 @@
 @import "tailwindcss";
 
+/* -------------------------------------------------------------------------- */
+/* Apple Human Interface Guidelines (HIG) Semantic Design Tokens              */
+/* -------------------------------------------------------------------------- */
+
 :root {
-  --background: #09090b;
-  --foreground: #fafafa;
+  /* Light Mode (Default) */
+  --system-bg: #F2F2F7; /* System Gray 6 */
+  --secondary-bg: #FFFFFF; /* Grouped Canvas */
+  --elevated-surface: #FFFFFF; /* Cards / Modals */
+  --hairline: #E5E5EA; /* 1px hairline border */
+  --hairline-inset: rgba(60, 60, 67, 0.29); /* 0.5px separators */
+  --label-primary: #000000;
+  --label-secondary: #3C3C43;
+  --label-secondary-alpha: rgba(60, 60, 67, 0.6);
+  --label-tertiary: #8E8E93;
+  --label-quaternary: #C7C7CC;
+  --tertiary-fill: rgba(118, 118, 128, 0.12); /* Search/Inputs/Pills */
+  --quaternary-fill: rgba(118, 118, 128, 0.08);
+  --accent-blue: #007AFF; /* Apple System Blue */
+  --accent-green: #34C759; /* Apple System Green */
+  --accent-orange: #FF9500; /* Apple System Orange */
+  --accent-red: #FF3B30; /* Apple System Red */
+  --vibrancy-bg: rgba(255, 255, 255, 0.82);
+  --vibrancy-border: rgba(255, 255, 255, 0.5);
+  --ambient-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+  --sheet-scrim: rgba(0, 0, 0, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    /* Dark Mode (OLED True Black) */
+    --system-bg: #000000;
+    --secondary-bg: #1C1C1E; /* System Gray 6 Dark */
+    --elevated-surface: #2C2C2E; /* Cards / Modals */
+    --hairline: rgba(255, 255, 255, 0.1);
+    --hairline-inset: rgba(84, 84, 88, 0.65);
+    --label-primary: #FFFFFF;
+    --label-secondary: #EBEBF5;
+    --label-secondary-alpha: rgba(235, 235, 245, 0.6);
+    --label-tertiary: #8E8E93;
+    --label-quaternary: #48484A;
+    --tertiary-fill: rgba(118, 118, 128, 0.24);
+    --quaternary-fill: rgba(118, 118, 128, 0.16);
+    --accent-blue: #0A84FF;
+    --accent-green: #30D158;
+    --accent-orange: #FF9F0A;
+    --accent-red: #FF453A;
+    --vibrancy-bg: rgba(28, 28, 30, 0.82);
+    --vibrancy-border: rgba(255, 255, 255, 0.12);
+    --ambient-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.12);
+    --sheet-scrim: rgba(0, 0, 0, 0.65);
+  }
+}
+
+/* Explicit data-theme overrides */
+[data-theme="dark"] {
+  --system-bg: #000000;
+  --secondary-bg: #1C1C1E;
+  --elevated-surface: #2C2C2E;
+  --hairline: rgba(255, 255, 255, 0.1);
+  --hairline-inset: rgba(84, 84, 88, 0.65);
+  --label-primary: #FFFFFF;
+  --label-secondary: #EBEBF5;
+  --label-secondary-alpha: rgba(235, 235, 245, 0.6);
+  --label-tertiary: #8E8E93;
+  --label-quaternary: #48484A;
+  --tertiary-fill: rgba(118, 118, 128, 0.24);
+  --quaternary-fill: rgba(118, 118, 128, 0.16);
+  --accent-blue: #0A84FF;
+  --accent-green: #30D158;
+  --accent-orange: #FF9F0A;
+  --accent-red: #FF453A;
+  --vibrancy-bg: rgba(28, 28, 30, 0.82);
+  --vibrancy-border: rgba(255, 255, 255, 0.12);
+  --ambient-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.12);
+  --sheet-scrim: rgba(0, 0, 0, 0.65);
+}
+
+[data-theme="light"] {
+  --system-bg: #F2F2F7;
+  --secondary-bg: #FFFFFF;
+  --elevated-surface: #FFFFFF;
+  --hairline: #E5E5EA;
+  --hairline-inset: rgba(60, 60, 67, 0.29);
+  --label-primary: #000000;
+  --label-secondary: #3C3C43;
+  --label-secondary-alpha: rgba(60, 60, 67, 0.6);
+  --label-tertiary: #8E8E93;
+  --label-quaternary: #C7C7CC;
+  --tertiary-fill: rgba(118, 118, 128, 0.12);
+  --quaternary-fill: rgba(118, 118, 128, 0.08);
+  --accent-blue: #007AFF;
+  --accent-green: #34C759;
+  --accent-orange: #FF9500;
+  --accent-red: #FF3B30;
+  --vibrancy-bg: rgba(255, 255, 255, 0.82);
+  --vibrancy-border: rgba(255, 255, 255, 0.5);
+  --ambient-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+  --sheet-scrim: rgba(0, 0, 0, 0.35);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Base & Reset                                                               */
+/* -------------------------------------------------------------------------- */
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
 }
 
 body {
-  background-color: #09090b;
-  color: #fafafa;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--system-bg);
+  color: var(--label-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
 }
 
-.glass-card {
-  background: rgba(24, 24, 27, 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(39, 39, 42, 0.65);
+/* -------------------------------------------------------------------------- */
+/* SF Pro Typography Utility Classes                                          */
+/* -------------------------------------------------------------------------- */
+
+.ios-large-title {
+  font-size: 34px;
+  line-height: 41px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--label-primary);
 }
 
-.glass-card:hover {
-  border-color: rgba(63, 63, 70, 0.85);
+.ios-title-2 {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--label-primary);
 }
 
-.glass-nav {
-  background: rgba(9, 9, 11, 0.88);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(39, 39, 42, 0.75);
+.ios-title-3 {
+  font-size: 20px;
+  line-height: 25px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: var(--label-primary);
 }
 
-/* Custom sleek Apple/shadcn scrollbar */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 5px;
+.ios-headline {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--label-primary);
 }
-.custom-scrollbar::-webkit-scrollbar-track {
+
+.ios-body {
+  font-size: 17px;
+  line-height: 1.47;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+  color: var(--label-primary);
+}
+
+.ios-callout {
+  font-size: 16px;
+  line-height: 21px;
+  font-weight: 400;
+  letter-spacing: -0.003em;
+  color: var(--label-primary);
+}
+
+.ios-subheadline {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--label-secondary-alpha);
+}
+
+.ios-footnote {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--label-secondary-alpha);
+}
+
+.ios-caption-1 {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--label-secondary-alpha);
+}
+
+.ios-caption-2 {
+  font-size: 11px;
+  line-height: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--label-secondary-alpha);
+}
+
+/* -------------------------------------------------------------------------- */
+/* iOS Inset Grouped & Component Geometry                                     */
+/* -------------------------------------------------------------------------- */
+
+.ios-grouped-card {
+  background-color: var(--secondary-bg);
+  border-radius: 20px;
+  border: 1px solid var(--hairline);
+  box-shadow: var(--ambient-shadow);
+  overflow: hidden;
+}
+
+.ios-card-elevated {
+  background-color: var(--elevated-surface);
+  border-radius: 20px;
+  border: 1px solid var(--hairline);
+  box-shadow: var(--ambient-shadow);
+  overflow: hidden;
+}
+
+.ios-inset-divider {
+  height: 0.5px;
+  background-color: var(--hairline-inset);
+  margin-left: 16px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Vibrancy & Translucency                                                    */
+/* -------------------------------------------------------------------------- */
+
+.ios-vibrancy-nav {
+  background-color: var(--vibrancy-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 0.5px solid var(--hairline-inset);
+}
+
+.ios-vibrancy-tabbar {
+  background-color: var(--vibrancy-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-top: 0.5px solid var(--hairline-inset);
+}
+
+.ios-vibrancy-pill {
+  background-color: var(--vibrancy-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 0.5px solid var(--hairline);
+  box-shadow: var(--ambient-shadow);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Kinetic Micro-Interactions                                                 */
+/* -------------------------------------------------------------------------- */
+
+.ios-press {
+  transition: transform 150ms cubic-bezier(0.2, 0, 0, 1), opacity 150ms ease;
+  user-select: none;
+}
+
+.ios-press:active {
+  transform: scale(0.97);
+  opacity: 0.85;
+}
+
+.ios-press-subtle {
+  transition: transform 150ms cubic-bezier(0.2, 0, 0, 1);
+  user-select: none;
+}
+
+.ios-press-subtle:active {
+  transform: scale(0.985);
+}
+
+/* -------------------------------------------------------------------------- */
+/* iOS Subtle Scrollbar                                                       */
+/* -------------------------------------------------------------------------- */
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
   background: transparent;
 }
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #3f3f46;
+
+::-webkit-scrollbar-thumb {
+  background: var(--label-tertiary);
   border-radius: 9999px;
+  opacity: 0.3;
 }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
+
+::-webkit-scrollbar-thumb:hover {
+  opacity: 0.6;
 }

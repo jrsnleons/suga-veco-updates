@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Star, Plus, X, Radio, CheckCircle2, Clock, AlertTriangle } from 'lucide-react';
+import { MapPin, Plus, Trash2, Radio, CheckCircle2, Clock, AlertTriangle, ChevronRight } from 'lucide-react';
 import { Interruption } from '@/types';
 
 interface SavedPlacesProps {
@@ -20,31 +20,33 @@ export const SavedPlaces: React.FC<SavedPlacesProps> = ({
   onRemove,
 }) => {
   return (
-    <section className="space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-          <span className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">My Saved Places</span>
-        </div>
+    <section className="space-y-1.5">
+      {/* iOS Grouped Section Header */}
+      <div className="flex items-center justify-between px-3">
+        <span className="text-[12px] font-medium text-[var(--label-secondary-alpha)] uppercase tracking-wider">
+          PINNED LOCATIONS
+        </span>
         <button 
           onClick={onOpenPinDialog} 
-          className="text-xs text-zinc-400 hover:text-zinc-200 font-medium transition-colors flex items-center gap-1 cursor-pointer"
+          className="text-[13px] font-medium text-[var(--accent-blue)] hover:opacity-80 transition-opacity flex items-center gap-1 cursor-pointer ios-press"
         >
-          <Plus className="w-3.5 h-3.5" />
-          <span>Pin Place</span>
+          <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+          <span>Add Location</span>
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      {/* Inset Grouped Container */}
+      <div className="ios-grouped-card">
         {favorites.length === 0 ? (
-          <div 
+          <button 
             onClick={onOpenPinDialog}
-            className="col-span-2 p-3 rounded-xl bg-zinc-900/50 border border-zinc-800/80 text-xs text-zinc-500 text-center hover:border-zinc-700 cursor-pointer transition-colors"
+            className="w-full p-4 text-center text-xs sm:text-sm text-[var(--label-secondary-alpha)] hover:bg-[var(--tertiary-fill)] transition-colors cursor-pointer flex items-center justify-center gap-2"
           >
-            No pinned places. Tap &quot;Pin Place&quot; to monitor your home or work.
-          </div>
+            <MapPin className="w-4 h-4 text-[var(--accent-blue)]" />
+            <span>No pinned locations. Tap to monitor your barangay.</span>
+          </button>
         ) : (
-          favorites.map(fav => {
+          favorites.map((fav, index) => {
             const activeAlert = outages.find(o => !o.isPast && (
               o.area.toLowerCase().includes(fav.toLowerCase()) || 
               o.city.toLowerCase().includes(fav.toLowerCase()) ||
@@ -57,53 +59,75 @@ export const SavedPlaces: React.FC<SavedPlacesProps> = ({
             const isCancelled = Boolean(activeAlert && activeAlert.status === 'cancelled');
 
             let statusText = 'Normal';
-            let badgeColor = 'text-emerald-400';
+            let badgeBg = 'bg-[var(--accent-green)]/12 text-[var(--accent-green)]';
+            let StatusIcon = CheckCircle2;
 
             if (hasOngoing) {
               statusText = activeAlert!.statusLabel || 'In Progress';
-              badgeColor = 'text-rose-400';
+              badgeBg = 'bg-[var(--accent-red)]/15 text-[var(--accent-red)]';
+              StatusIcon = Radio;
             } else if (hasDelayed) {
               statusText = 'Delayed Start';
-              badgeColor = 'text-amber-400';
+              badgeBg = 'bg-[var(--accent-orange)]/15 text-[var(--accent-orange)]';
+              StatusIcon = AlertTriangle;
             } else if (hasUpcoming) {
               statusText = `Sched ${activeAlert!.timeStart || ''}`;
-              badgeColor = 'text-blue-400';
+              badgeBg = 'bg-[var(--accent-blue)]/12 text-[var(--accent-blue)]';
+              StatusIcon = Clock;
             } else if (isCancelled) {
               statusText = 'Cancelled';
-              badgeColor = 'text-zinc-400';
+              badgeBg = 'bg-[var(--tertiary-fill)] text-[var(--label-secondary)]';
             }
 
             return (
-              <div 
-                key={fav}
-                onClick={() => onSelect(fav)}
-                className="p-3 rounded-xl bg-zinc-900/70 border border-zinc-800 hover:border-zinc-700 cursor-pointer transition-all flex items-center justify-between group"
-              >
-                <div className="space-y-0.5 min-w-0 pr-2">
-                  <span className="text-xs font-semibold text-zinc-200 block truncate">{fav}</span>
-                  <span className={`text-[11px] ${badgeColor} flex items-center gap-1.5`}>
-                    {hasOngoing ? (
-                      <Radio className="w-2.5 h-2.5 text-rose-400 animate-pulse flex-shrink-0" />
-                    ) : hasDelayed ? (
-                      <AlertTriangle className="w-2.5 h-2.5 text-amber-400 flex-shrink-0" />
-                    ) : hasUpcoming ? (
-                      <Clock className="w-2.5 h-2.5 text-blue-400 flex-shrink-0" />
-                    ) : isCancelled ? (
-                      <X className="w-2.5 h-2.5 text-zinc-500 flex-shrink-0" />
-                    ) : (
-                      <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400 flex-shrink-0" />
-                    )}
-                    <span className="truncate">{statusText}</span>
-                  </span>
-                </div>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); onRemove(fav); }} 
-                  className="text-zinc-600 hover:text-rose-400 opacity-0 group-hover:opacity-100 p-1 transition-opacity cursor-pointer flex-shrink-0" 
-                  title="Unpin"
+              <React.Fragment key={fav}>
+                {index > 0 && <div className="ios-inset-divider" style={{ marginLeft: '52px' }} />}
+                
+                <div 
+                  onClick={() => onSelect(fav)}
+                  className="px-4 py-3 min-h-[52px] flex items-center justify-between gap-3 hover:bg-[var(--tertiary-fill)] transition-colors cursor-pointer group ios-press-subtle"
                 >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
+                  {/* Left: Location Glyph & Details */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-[var(--accent-blue)]/12 text-[var(--accent-blue)] flex items-center justify-center flex-shrink-0">
+                      <MapPin className="w-4 h-4 fill-current text-[var(--accent-blue)]" />
+                    </div>
+
+                    <div className="space-y-0.5 min-w-0 pr-2">
+                      <span className="text-[16px] font-semibold text-[var(--label-primary)] block truncate">
+                        {fav}
+                      </span>
+                      <span className="text-[12px] text-[var(--label-secondary-alpha)] block truncate">
+                        {hasOngoing || hasDelayed || hasUpcoming 
+                          ? activeAlert?.area || activeAlert?.city 
+                          : 'Grid power nominal'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Right: Status Pill & Actions */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium ${badgeBg}`}>
+                      <StatusIcon className="w-3 h-3 flex-shrink-0" />
+                      <span className="truncate max-w-[110px]">{statusText}</span>
+                    </span>
+
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        onRemove(fav); 
+                      }} 
+                      className="w-7 h-7 rounded-full text-[var(--label-tertiary)] hover:text-[var(--accent-red)] hover:bg-[var(--tertiary-fill)] flex items-center justify-center transition-colors cursor-pointer" 
+                      title="Unpin location"
+                      aria-label={`Unpin ${fav}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+
+                    <ChevronRight className="w-4 h-4 text-[var(--label-tertiary)]" />
+                  </div>
+                </div>
+              </React.Fragment>
             );
           })
         )}
