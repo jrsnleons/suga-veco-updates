@@ -28,7 +28,30 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="antialiased min-h-screen bg-[var(--system-bg)] text-[var(--label-primary)]">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var saved = localStorage.getItem('suga_theme');
+                  if (saved === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    document.documentElement.classList.add('dark');
+                  } else {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                    document.documentElement.classList.remove('dark');
+                  }
+                } catch (e) {
+                  document.documentElement.setAttribute('data-theme', 'light');
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
+      <body className="antialiased min-h-screen bg-[var(--system-bg)] text-[var(--label-primary)] transition-colors duration-200">
+        <div className="fixed inset-0 pointer-events-none -z-10 ios-ambient-canvas" aria-hidden="true" />
         {children}
       </body>
     </html>

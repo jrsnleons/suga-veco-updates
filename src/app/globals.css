@@ -4,16 +4,22 @@
 /* Apple Human Interface Guidelines (HIG) Semantic Design Tokens              */
 /* -------------------------------------------------------------------------- */
 
-:root {
+:root,
+[data-theme="light"] {
   /* Light Mode (Default) */
   --system-bg: #F2F2F7; /* System Gray 6 */
+  --system-bg-gradient: 
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 122, 255, 0.08) 0%, transparent 70%),
+    radial-gradient(circle at 95% 5%, rgba(255, 149, 0, 0.06) 0%, transparent 45%),
+    radial-gradient(circle at 5% 35%, rgba(52, 199, 89, 0.04) 0%, transparent 40%),
+    linear-gradient(180deg, #F8F9FD 0%, #F2F2F7 35%, #ECECF2 100%);
   --secondary-bg: #FFFFFF; /* Grouped Canvas */
   --elevated-surface: #FFFFFF; /* Cards / Modals */
   --hairline: #E5E5EA; /* 1px hairline border */
-  --hairline-inset: rgba(60, 60, 67, 0.29); /* 0.5px separators */
+  --hairline-inset: rgba(60, 60, 67, 0.2); /* 0.5px separators */
   --label-primary: #000000;
   --label-secondary: #3C3C43;
-  --label-secondary-alpha: rgba(60, 60, 67, 0.6);
+  --label-secondary-alpha: rgba(60, 60, 67, 0.65);
   --label-tertiary: #8E8E93;
   --label-quaternary: #C7C7CC;
   --tertiary-fill: rgba(118, 118, 128, 0.12); /* Search/Inputs/Pills */
@@ -22,43 +28,23 @@
   --accent-green: #34C759; /* Apple System Green */
   --accent-orange: #FF9500; /* Apple System Orange */
   --accent-red: #FF3B30; /* Apple System Red */
-  --vibrancy-bg: rgba(255, 255, 255, 0.82);
-  --vibrancy-border: rgba(255, 255, 255, 0.5);
+  --vibrancy-bg: rgba(255, 255, 255, 0.70);
+  --vibrancy-border: rgba(255, 255, 255, 0.6);
   --ambient-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
   --sheet-scrim: rgba(0, 0, 0, 0.35);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    /* Dark Mode (OLED True Black) */
-    --system-bg: #000000;
-    --secondary-bg: #1C1C1E; /* System Gray 6 Dark */
-    --elevated-surface: #2C2C2E; /* Cards / Modals */
-    --hairline: rgba(255, 255, 255, 0.1);
-    --hairline-inset: rgba(84, 84, 88, 0.65);
-    --label-primary: #FFFFFF;
-    --label-secondary: #EBEBF5;
-    --label-secondary-alpha: rgba(235, 235, 245, 0.6);
-    --label-tertiary: #8E8E93;
-    --label-quaternary: #48484A;
-    --tertiary-fill: rgba(118, 118, 128, 0.24);
-    --quaternary-fill: rgba(118, 118, 128, 0.16);
-    --accent-blue: #0A84FF;
-    --accent-green: #30D158;
-    --accent-orange: #FF9F0A;
-    --accent-red: #FF453A;
-    --vibrancy-bg: rgba(28, 28, 30, 0.82);
-    --vibrancy-border: rgba(255, 255, 255, 0.12);
-    --ambient-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.12);
-    --sheet-scrim: rgba(0, 0, 0, 0.65);
-  }
-}
-
-/* Explicit data-theme overrides */
-[data-theme="dark"] {
+[data-theme="dark"],
+.dark {
+  /* Dark Mode (OLED True Black - Activated explicitly and persisted) */
   --system-bg: #000000;
-  --secondary-bg: #1C1C1E;
-  --elevated-surface: #2C2C2E;
+  --system-bg-gradient: 
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(10, 132, 255, 0.16) 0%, transparent 70%),
+    radial-gradient(circle at 95% 5%, rgba(255, 159, 10, 0.07) 0%, transparent 45%),
+    radial-gradient(circle at 5% 35%, rgba(48, 209, 88, 0.05) 0%, transparent 40%),
+    linear-gradient(180deg, #0A0C14 0%, #000000 35%, #050508 100%);
+  --secondary-bg: #1C1C1E; /* System Gray 6 Dark */
+  --elevated-surface: #2C2C2E; /* Cards / Modals */
   --hairline: rgba(255, 255, 255, 0.1);
   --hairline-inset: rgba(84, 84, 88, 0.65);
   --label-primary: #FFFFFF;
@@ -72,33 +58,10 @@
   --accent-green: #30D158;
   --accent-orange: #FF9F0A;
   --accent-red: #FF453A;
-  --vibrancy-bg: rgba(28, 28, 30, 0.82);
+  --vibrancy-bg: rgba(10, 10, 12, 0.70);
   --vibrancy-border: rgba(255, 255, 255, 0.12);
   --ambient-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.12);
   --sheet-scrim: rgba(0, 0, 0, 0.65);
-}
-
-[data-theme="light"] {
-  --system-bg: #F2F2F7;
-  --secondary-bg: #FFFFFF;
-  --elevated-surface: #FFFFFF;
-  --hairline: #E5E5EA;
-  --hairline-inset: rgba(60, 60, 67, 0.29);
-  --label-primary: #000000;
-  --label-secondary: #3C3C43;
-  --label-secondary-alpha: rgba(60, 60, 67, 0.6);
-  --label-tertiary: #8E8E93;
-  --label-quaternary: #C7C7CC;
-  --tertiary-fill: rgba(118, 118, 128, 0.12);
-  --quaternary-fill: rgba(118, 118, 128, 0.08);
-  --accent-blue: #007AFF;
-  --accent-green: #34C759;
-  --accent-orange: #FF9500;
-  --accent-red: #FF3B30;
-  --vibrancy-bg: rgba(255, 255, 255, 0.82);
-  --vibrancy-border: rgba(255, 255, 255, 0.5);
-  --ambient-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
-  --sheet-scrim: rgba(0, 0, 0, 0.35);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -234,29 +197,38 @@ body {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Vibrancy & Translucency                                                    */
+/* Vibrancy & Translucency (Apple Frosted Glass)                              */
 /* -------------------------------------------------------------------------- */
 
 .ios-vibrancy-nav {
   background-color: var(--vibrancy-bg);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(36px) saturate(190%);
+  -webkit-backdrop-filter: blur(36px) saturate(190%);
   border-bottom: 0.5px solid var(--hairline-inset);
+  box-shadow: 0 1px 0 0 var(--hairline-inset), 0 4px 20px -2px rgba(0, 0, 0, 0.02);
 }
 
 .ios-vibrancy-tabbar {
   background-color: var(--vibrancy-bg);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(36px) saturate(190%);
+  -webkit-backdrop-filter: blur(36px) saturate(190%);
   border-top: 0.5px solid var(--hairline-inset);
 }
 
 .ios-vibrancy-pill {
   background-color: var(--vibrancy-bg);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(36px) saturate(190%);
+  -webkit-backdrop-filter: blur(36px) saturate(190%);
   border: 0.5px solid var(--hairline);
   box-shadow: var(--ambient-shadow);
+}
+
+.ios-ambient-canvas {
+  background: var(--system-bg-gradient);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: cover;
+  transition: background 300ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 /* -------------------------------------------------------------------------- */

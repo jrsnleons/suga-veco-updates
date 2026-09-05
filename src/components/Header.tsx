@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Zap, Sun, Moon, Monitor } from 'lucide-react';
+import { RefreshCw, Zap, Sun, Moon } from 'lucide-react';
 
 interface HeaderProps {
   lastSyncedText: string;
@@ -11,29 +11,33 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ lastSyncedText, isSyncing, onSync }) => {
   const [cebuTime, setCebuTime] = useState('');
-  const [themeMode, setThemeMode] = useState<'system' | 'light' | 'dark'>(() => {
-    if (typeof window === 'undefined') return 'system';
+  
+  // Defaults strictly to 'light' mode unless explicitly saved as 'dark' in localStorage
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') return 'light';
     try {
-      const saved = localStorage.getItem('suga_theme') as 'system' | 'light' | 'dark' | null;
-      return saved || 'system';
+      const saved = localStorage.getItem('suga_theme');
+      return saved === 'dark' ? 'dark' : 'light';
     } catch {
-      return 'system';
+      return 'light';
     }
   });
 
+  // Sync DOM attribute whenever theme state changes
   useEffect(() => {
-    if (themeMode === 'system') {
-      document.documentElement.removeAttribute('data-theme');
+    if (theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      document.documentElement.classList.add('dark');
     } else {
-      document.documentElement.setAttribute('data-theme', themeMode);
+      document.documentElement.setAttribute('data-theme', 'light');
+      document.documentElement.classList.remove('dark');
     }
-  }, [themeMode]);
+  }, [theme]);
 
-  const handleCycleTheme = () => {
-    const nextTheme = themeMode === 'system' ? 'light' : themeMode === 'light' ? 'dark' : 'system';
-    setThemeMode(nextTheme);
+  const handleSelectTheme = (selectedTheme: 'light' | 'dark') => {
+    setTheme(selectedTheme);
     try {
-      localStorage.setItem('suga_theme', nextTheme);
+      localStorage.setItem('suga_theme', selectedTheme);
     } catch {}
   };
 
@@ -84,21 +88,39 @@ export const Header: React.FC<HeaderProps> = ({ lastSyncedText, isSyncing, onSyn
             <span>{lastSyncedText}</span>
           </div>
 
-          {/* Theme Selector Button */}
-          <button
-            onClick={handleCycleTheme}
-            className="w-9 h-9 rounded-full bg-[var(--tertiary-fill)] hover:bg-[var(--tertiary-fill)]/80 text-[var(--label-secondary)] flex items-center justify-center ios-press cursor-pointer"
-            title={`Theme: ${themeMode} (Tap to change)`}
-            aria-label="Toggle theme mode"
+          {/* Theme Selector Segmented Control (Defaults to Light, Persists on Dark) */}
+          <div
+            className="flex items-center p-0.5 rounded-full bg-[var(--tertiary-fill)] border border-[var(--hairline)]"
+            role="group"
+            aria-label="Theme mode switcher"
           >
-            {themeMode === 'system' ? (
-              <Monitor className="w-4 h-4 text-[var(--label-secondary)]" />
-            ) : themeMode === 'light' ? (
-              <Sun className="w-4 h-4 text-[var(--accent-orange)]" />
-            ) : (
-              <Moon className="w-4 h-4 text-[var(--accent-blue)]" />
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={() => handleSelectTheme('light')}
+              className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ios-press ${
+                theme === 'light'
+                  ? 'bg-[var(--secondary-bg)] text-[var(--accent-orange)] shadow-xs'
+                  : 'text-[var(--label-tertiary)] hover:text-[var(--label-secondary)]'
+              }`}
+              title="Light Mode (Default)"
+              aria-label="Switch to Light Mode"
+            >
+              <Sun className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectTheme('dark')}
+              className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ios-press ${
+                theme === 'dark'
+                  ? 'bg-[var(--elevated-surface)] text-[var(--accent-blue)] shadow-xs'
+                  : 'text-[var(--label-tertiary)] hover:text-[var(--label-secondary)]'
+              }`}
+              title="Dark Mode (Persisted)"
+              aria-label="Switch to Dark Mode"
+            >
+              <Moon className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
           {/* Refresh Action Button */}
           <button
