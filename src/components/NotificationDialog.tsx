@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { 
   Bell, BellRing, BellOff, MapPin, Check, X, 
   Sparkles, ShieldCheck, AlertTriangle, Send, RotateCcw, 
@@ -34,6 +34,7 @@ export const NotificationDialog: React.FC<NotificationDialogProps> = ({
   favorites,
   onOpenPinDialog,
 }) => {
+  const dragControls = useDragControls();
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('default');
   const [prefs, setPrefs] = useState<NotificationPreferences>(getNotificationPrefs);
   const [isTesting, setIsTesting] = useState(false);
@@ -117,19 +118,42 @@ export const NotificationDialog: React.FC<NotificationDialogProps> = ({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: '100%', opacity: 0 }}
             transition={{ type: 'spring', stiffness: 450, damping: 34 }}
+            drag="y"
+            dragListener={false}
+            dragControls={dragControls}
+            dragConstraints={{ top: 0 }}
+            dragElastic={{ top: 0.05, bottom: 0.5 }}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 80 || info.velocity.y > 250) {
+                onClose();
+              }
+            }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-[var(--elevated-surface)] border border-[var(--hairline)] rounded-t-[32px] sm:rounded-[24px] max-w-md w-full p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] space-y-4 shadow-2xl max-h-[90vh] flex flex-col overscroll-contain touch-pan-y overflow-hidden"
+            className="bg-[var(--elevated-surface)] border border-[var(--hairline)] rounded-t-[32px] sm:rounded-[24px] max-w-md w-full p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] space-y-4 shadow-2xl max-h-[90vh] flex flex-col overscroll-contain touch-pan-y overflow-hidden relative"
           >
-            {/* iOS Sheet Grabber Bar */}
-            <div className="w-12 h-1.5 rounded-full bg-[var(--label-tertiary)]/70 dark:bg-white/35 mx-auto -mt-1 mb-1 shadow-xs" />
+            {/* iOS Sheet Grabber Bar - Drag Handle */}
+            <div 
+              onPointerDown={(e) => dragControls.start(e)}
+              className="w-full pt-1 pb-2 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
+              aria-label="Drag handle to dismiss sheet"
+            >
+              <div className="w-12 h-1.5 rounded-full bg-[var(--label-tertiary)]/70 dark:bg-white/35 hover:bg-[var(--label-secondary)] transition-colors shadow-xs" />
+            </div>
 
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div 
+              onPointerDown={(e) => {
+                if (!(e.target as HTMLElement).closest('button, input, a, [role="switch"]')) {
+                  dragControls.start(e);
+                }
+              }}
+              className="flex items-center justify-between cursor-grab active:cursor-grabbing select-none"
+            >
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-[var(--accent-orange)]/15 text-[var(--accent-orange)] flex items-center justify-center font-semibold">
+                <div className="w-8 h-8 rounded-full bg-[var(--accent-orange)]/15 text-[var(--accent-orange)] flex items-center justify-center font-semibold pointer-events-none">
                   <BellRing className="w-4 h-4 text-[var(--accent-orange)]" />
                 </div>
-                <div>
+                <div className="pointer-events-none">
                   <h3 id="notification-dialog-title" className="text-[17px] font-semibold text-[var(--label-primary)]">
                     Brownout Alerts
                   </h3>
