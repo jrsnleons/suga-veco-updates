@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { importLiveFeed } from '@/db/import-live-feed';
 import { getAllInterruptions, getLatestScrapeLog } from '@/db';
 import { enrichWithLiveStatus } from '@/lib/status-utils';
@@ -6,13 +6,12 @@ import { enrichWithLiveStatus } from '@/lib/status-utils';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-function isAuthorized(request: Request): boolean {
+function isAuthorized(request: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) return true;
 
   try {
-    const url = new URL(request.url);
-    const querySecret = url.searchParams.get('secret') || url.searchParams.get('token');
+    const querySecret = request.nextUrl.searchParams.get('secret') || request.nextUrl.searchParams.get('token');
     if (querySecret === cronSecret) return true;
 
     const authHeader = request.headers.get('authorization');
@@ -27,7 +26,7 @@ function isAuthorized(request: Request): boolean {
   return false;
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     if (!isAuthorized(request)) {
       return NextResponse.json(
@@ -58,6 +57,6 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   return GET(request);
 }
