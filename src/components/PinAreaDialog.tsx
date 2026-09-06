@@ -142,7 +142,7 @@ export const PinAreaDialog: React.FC<PinAreaDialogProps> = ({
             exit={{ y: '100%', opacity: 0 }}
             transition={{ type: 'spring', stiffness: 450, damping: 34 }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-[var(--elevated-surface)] border border-[var(--hairline)] rounded-t-[32px] sm:rounded-[24px] max-w-md w-full p-5 space-y-4 shadow-2xl max-h-[85vh] flex flex-col overscroll-contain touch-pan-y overflow-hidden"
+            className="bg-[var(--elevated-surface)] border border-[var(--hairline)] rounded-t-[32px] sm:rounded-[24px] max-w-md w-full p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] space-y-4 shadow-2xl max-h-[85vh] flex flex-col overscroll-contain touch-pan-y overflow-hidden"
           >
             {/* iOS Sheet Grabber Bar */}
             <div className="w-12 h-1.5 rounded-full bg-[var(--label-tertiary)]/70 dark:bg-white/35 mx-auto -mt-1 mb-1 shadow-xs" />

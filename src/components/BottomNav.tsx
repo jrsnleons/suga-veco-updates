@@ -20,7 +20,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onChangeTab })
   ];
 
   return (
-    <nav aria-label="Main navigation" className="fixed bottom-5 inset-x-0 max-w-sm sm:max-w-md mx-auto px-3 z-40 pointer-events-none">
+    <nav aria-label="Main navigation" className="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] inset-x-0 max-w-sm sm:max-w-md mx-auto px-3 z-40 pointer-events-none">
       <div role="tablist" className="pointer-events-auto ios-vibrancy-pill rounded-full p-1.5 flex items-center justify-around border border-[var(--hairline)] shadow-2xl backdrop-blur-2xl">
         {tabs.map(tab => {
           const Icon = tab.icon;

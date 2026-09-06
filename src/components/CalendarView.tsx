@@ -84,45 +84,42 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ outages, onOpenDetai
 
   // Find target card ID:
   // - Today: locates the card matching active clock time (or next upcoming)
-  // - Other days: always starts from the center card of that day's schedule
+  // - Other days: null (always starts from the top)
   const targetPostId = useMemo(() => {
-    if (q || dayOutages.length === 0) return null;
+    if (!isToday || q || dayOutages.length === 0) return null;
 
-    if (isToday) {
-      const now = new Date();
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-      // Look for outage currently in progress right now
-      const activeNow = dayOutages.find(o => {
-        const start = parseTimeToMinutes(o.timeStart || o.time);
-        const end = parseTimeToMinutes(o.timeEnd);
-        if (start !== null && end !== null) {
-          return currentMinutes >= start && currentMinutes <= end;
-        }
-        return false;
-      });
-      if (activeNow) return activeNow.id;
+    // Look for outage currently in progress right now
+    const activeNow = dayOutages.find(o => {
+      const start = parseTimeToMinutes(o.timeStart || o.time);
+      const end = parseTimeToMinutes(o.timeEnd);
+      if (start !== null && end !== null) {
+        return currentMinutes >= start && currentMinutes <= end;
+      }
+      return false;
+    });
+    if (activeNow) return activeNow.id;
 
-      // Look for next upcoming outage today
-      const upcomingToday = dayOutages.filter(o => {
-        const start = parseTimeToMinutes(o.timeStart || o.time);
-        return start !== null && start >= currentMinutes;
-      });
-      if (upcomingToday.length > 0) return upcomingToday[0].id;
+    // Look for next upcoming outage today
+    const upcomingToday = dayOutages.filter(o => {
+      const start = parseTimeToMinutes(o.timeStart || o.time);
+      return start !== null && start >= currentMinutes;
+    });
+    if (upcomingToday.length > 0) return upcomingToday[0].id;
 
-      // Otherwise latest today
-      return dayOutages[dayOutages.length - 1].id;
-    } else {
-      // For other days, always start from the center item of that day's schedule
-      const centerIdx = Math.floor(dayOutages.length / 2);
-      return dayOutages[centerIdx]?.id || null;
-    }
+    // Otherwise latest today
+    return dayOutages[dayOutages.length - 1]?.id || null;
   }, [dayOutages, isToday, q]);
 
-  // Locate and auto-scroll directly to target card:
-  // Today centers on current-time post; other days start from center of schedule
+  // Locate and auto-scroll behavior:
+  // - Today: centers on the active or upcoming schedule card
+  // - Other days: resets viewport scroll to the top of the schedule
   useEffect(() => {
-    if (!q && targetPostId) {
+    if (q) return;
+
+    if (isToday && targetPostId) {
       const timer = setTimeout(() => {
         const target = document.getElementById('timeline-now-anchor');
         if (target) {
@@ -131,8 +128,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ outages, onOpenDetai
       }, 180);
 
       return () => clearTimeout(timer);
+    } else if (!isToday) {
+      const timer = setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 100);
+
+      return () => clearTimeout(timer);
     }
-  }, [selectedDate, q, targetPostId]);
+  }, [selectedDate, isToday, q, targetPostId]);
 
   function getStatusStyle(status: string) {
     switch (status) {
@@ -178,7 +181,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ outages, onOpenDetai
       {/* Opaque STICKY HEADER (Week Numbers + Search)                       */}
       {/* Solid bg-[var(--system-bg)] so underlying cards never bleed through*/}
       {/* ------------------------------------------------------------------ */}
-      <div className="sticky top-14 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-2 pb-3 bg-[var(--system-bg)] border-b border-[var(--hairline)] space-y-2.5 transition-colors shadow-xs">
+      <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top,0px))] z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-2 pb-3 bg-[var(--system-bg)] border-b border-[var(--hairline)] space-y-2.5 transition-colors shadow-xs">
         
         {/* Top Row: Clean Title */}
         <div className="flex items-center justify-between">

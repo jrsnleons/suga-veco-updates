@@ -64,7 +64,7 @@ export const Header: React.FC<HeaderProps> = ({ lastSyncedText, isSyncing, onSyn
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 bg-[var(--system-bg)] border-b border-[var(--hairline)] transition-colors">
+    <header className="sticky top-0 z-40 bg-[var(--system-bg)] border-b border-[var(--hairline)] transition-colors pt-[env(safe-area-inset-top,0px)]">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
         {/* Left: Brand / App Identity with Spring Press */}
         <motion.div 

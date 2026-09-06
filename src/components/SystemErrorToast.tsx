@@ -25,7 +25,7 @@ export const SystemErrorToast: React.FC<SystemErrorToastProps> = ({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -20, scale: 0.95 }}
           transition={{ type: 'spring', stiffness: 450, damping: 30 }}
-          className="fixed top-16 inset-x-0 z-50 flex justify-center px-4 pointer-events-none"
+          className="fixed top-[calc(4.5rem+env(safe-area-inset-top,0px))] inset-x-0 z-50 flex justify-center px-4 pointer-events-none"
         >
           <div className="pointer-events-auto max-w-md w-full bg-[var(--elevated-surface)] border border-[var(--accent-red)]/30 rounded-2xl shadow-2xl p-4 space-y-3">
             {/* Header */}

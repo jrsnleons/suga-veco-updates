@@ -209,16 +209,16 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[var(--system-bg)] text-[var(--label-primary)] transition-colors">
-      {/* Disclaimer Banner */}
-      <DisclaimerBanner />
-
       <Header 
         lastSyncedText={lastSyncedText}
         isSyncing={isSyncing}
         onSync={handleSync}
       />
 
-      <main className="max-w-2xl sm:max-w-3xl md:max-w-4xl mx-auto px-4 sm:px-6 pt-4 pb-28 space-y-6">
+      {/* Disclaimer Banner */}
+      <DisclaimerBanner />
+
+      <main className="max-w-2xl sm:max-w-3xl md:max-w-4xl mx-auto px-4 sm:px-6 pt-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] space-y-6">
         <AnimatePresence mode="wait">
           {currentTab === 'pulse' && (
             <motion.div 

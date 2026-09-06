@@ -603,7 +603,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
               }
             }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-[var(--elevated-surface)] border border-[var(--hairline)] rounded-t-[32px] sm:rounded-[24px] max-w-lg w-full shadow-2xl max-h-[90vh] sm:max-h-[85vh] flex flex-col overflow-hidden relative"
+            className="bg-[var(--elevated-surface)] border border-[var(--hairline)] rounded-t-[32px] sm:rounded-[24px] max-w-lg w-full shadow-2xl max-h-[90vh] sm:max-h-[85vh] flex flex-col overflow-hidden relative pb-[env(safe-area-inset-bottom,0px)]"
           >
             {/* iOS Sheet Grabber Bar - Fixed Non-Scrolling Drag Handle */}
             <div 
