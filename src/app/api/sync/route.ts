@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { runScrape } from '@/scraper/fb-scraper';
 import { importLiveFeed } from '@/db/import-live-feed';
 import { getAllInterruptions, getLatestScrapeLog } from '@/db';
 import { enrichWithLiveStatus } from '@/lib/status-utils';
@@ -57,20 +56,8 @@ async function handleSync(request: NextRequest) {
       );
     }
 
-    let result = { found: 0, newAdvisories: 0 };
-    if (process.env.VERCEL === '1') {
-      console.log('[API /api/sync] Running on Vercel runtime: synchronizing via live feed.');
-      const count = await importLiveFeed();
-      result = { found: count, newAdvisories: count };
-    } else {
-      try {
-        result = await runScrape();
-      } catch (err) {
-        console.warn('[API /api/sync] Scrape fallback to live feed:', err);
-        const count = await importLiveFeed();
-        result = { found: count, newAdvisories: count };
-      }
-    }
+    console.log('[API /api/sync] Synchronizing latest VECO advisories...');
+    const count = await importLiveFeed();
 
     const rawOutages = await getAllInterruptions();
     const outages = rawOutages.map(o => enrichWithLiveStatus(o));
@@ -78,7 +65,7 @@ async function handleSync(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Sync completed successfully. ${result.found} records processed.`,
+      message: `Sync completed successfully. ${count} records processed.`,
       lastSynced: latestLog ? latestLog.scrapedAt : new Date().toISOString(),
       total: outages.length,
       data: outages,

@@ -4,8 +4,12 @@ import fs from 'fs';
 import { Interruption, ScrapeLog } from '@/types';
 
 const DB_DIR = path.join(process.cwd(), 'data');
-if (!fs.existsSync(DB_DIR)) {
-  fs.mkdirSync(DB_DIR, { recursive: true });
+if (!process.env.TURSO_DATABASE_URL && !process.env.VERCEL) {
+  try {
+    if (!fs.existsSync(DB_DIR)) {
+      fs.mkdirSync(DB_DIR, { recursive: true });
+    }
+  } catch {}
 }
 
 // Auto-load environment variables from .env.local or .env when running in CLI/Node without Next.js
