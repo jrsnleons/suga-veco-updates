@@ -4,6 +4,7 @@ import { getAllInterruptions, getLatestScrapeLog } from '@/db';
 import { enrichWithLiveStatus } from '@/lib/status-utils';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 function verifyCronAuth(request: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
@@ -70,10 +71,14 @@ async function handleSync(request: NextRequest) {
       total: outages.length,
       data: outages,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[API /api/sync] Error during sync:', error);
     return NextResponse.json(
-      { success: false, error: 'Sync cycle encountered an issue' },
+      { 
+        success: false, 
+        error: error?.message || String(error) || 'Sync cycle encountered an issue',
+        details: error?.stack || undefined
+      },
       { status: 500 }
     );
   }

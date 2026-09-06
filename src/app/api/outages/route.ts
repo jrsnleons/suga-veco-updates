@@ -4,6 +4,7 @@ import { importLiveFeed } from '@/db/import-live-feed';
 import { enrichWithLiveStatus } from '@/lib/status-utils';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 // 30 minutes in milliseconds
 const STALE_THRESHOLD_MS = 30 * 60 * 1000;
