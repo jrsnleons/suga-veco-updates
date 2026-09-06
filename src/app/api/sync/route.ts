@@ -36,9 +36,22 @@ export async function GET(request: NextRequest) {
     }
 
     const count = await importLiveFeed();
+    const latestLog = await getLatestScrapeLog();
+
+    const includeData = request.nextUrl.searchParams.get('include_data') === '1';
+
+    // Keep payload lightweight (<200 bytes) for cron services like cron-job.org
+    if (!includeData) {
+      return NextResponse.json({
+        success: true,
+        message: `Sync completed successfully. ${count} records processed.`,
+        lastSynced: latestLog ? latestLog.scrapedAt : new Date().toISOString(),
+        count,
+      });
+    }
+
     const rawOutages = await getAllInterruptions();
     const outages = rawOutages.map(o => enrichWithLiveStatus(o));
-    const latestLog = await getLatestScrapeLog();
 
     return NextResponse.json({
       success: true,
@@ -58,5 +71,31 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  return GET(request);
+  try {
+    if (!isAuthorized(request)) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const count = await importLiveFeed();
+    const rawOutages = await getAllInterruptions();
+    const outages = rawOutages.map(o => enrichWithLiveStatus(o));
+    const latestLog = await getLatestScrapeLog();
+
+    return NextResponse.json({
+      success: true,
+      message: `Sync completed successfully. ${count} records processed.`,
+      lastSynced: latestLog ? latestLog.scrapedAt : new Date().toISOString(),
+      total: outages.length,
+      data: outages,
+    });
+  } catch (err: any) {
+    console.error('[API /api/sync POST] Exception:', err);
+    return NextResponse.json({
+      success: false,
+      error: err?.message || String(err),
+    }, { status: 500 });
+  }
 }
