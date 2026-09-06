@@ -2,12 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Zap, Sun, Moon } from 'lucide-react';
+import { RefreshCw, Zap, Sun, Moon, Bell } from 'lucide-react';
 
 interface HeaderProps {
   lastSyncedText: string;
   isSyncing: boolean;
   onSync: () => void;
+  onOpenNotifications: () => void;
+  favoritesCount?: number;
+  hasNotificationPermission?: boolean;
 }
 
 const emptySubscribe = () => () => {};
@@ -20,7 +23,14 @@ const manilaTimeFormatter = new Intl.DateTimeFormat('en-US', {
   hour12: true,
 });
 
-export const Header: React.FC<HeaderProps> = ({ lastSyncedText, isSyncing, onSync }) => {
+export const Header: React.FC<HeaderProps> = ({ 
+  lastSyncedText, 
+  isSyncing, 
+  onSync,
+  onOpenNotifications,
+  favoritesCount = 0,
+  hasNotificationPermission = false,
+}) => {
   const [cebuTime, setCebuTime] = useState('');
   const mounted = React.useSyncExternalStore(emptySubscribe, () => true, () => false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -137,6 +147,24 @@ export const Header: React.FC<HeaderProps> = ({ lastSyncedText, isSyncing, onSyn
                 </motion.div>
               )}
             </AnimatePresence>
+          </motion.button>
+
+          {/* Notification Alerts Center Button */}
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            onClick={onOpenNotifications}
+            className="relative w-9 h-9 rounded-full bg-[var(--tertiary-fill)] hover:bg-[var(--tertiary-fill)]/80 flex items-center justify-center border border-[var(--hairline)] transition-colors cursor-pointer select-none shadow-xs text-[var(--label-primary)]"
+            title="Outage Notifications & Alerts"
+            aria-label="Outage Notifications & Alerts"
+          >
+            <Bell className="w-4 h-4 text-[var(--label-secondary-alpha)] hover:text-[var(--label-primary)]" />
+            
+            {/* Status indicator badge */}
+            {hasNotificationPermission && favoritesCount > 0 ? (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[var(--accent-orange)] ring-2 ring-[var(--system-bg)] animate-pulse-amber" />
+            ) : favoritesCount > 0 ? (
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[var(--accent-blue)]" />
+            ) : null}
           </motion.button>
 
           {/* Tactile Refresh Action Button */}

@@ -85,3 +85,51 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// Handle PWA Notification Clicks
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // If a tab is already open, focus it
+      for (const client of clientList) {
+        if (client.url && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // Otherwise open a new window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow('/');
+      }
+    })
+  );
+});
+
+// Handle background push messages
+self.addEventListener('push', (event) => {
+  if (event.data) {
+    try {
+      const data = event.data.json();
+      const title = data.title || '⚡ SUGA Outage Alert';
+      const options = {
+        body: data.body || 'Power schedule update for Metro Cebu.',
+        icon: '/icons/icon-192.svg',
+        badge: '/icons/icon-192.svg',
+        vibrate: [200, 100, 200],
+        tag: data.tag || 'suga_push_alert',
+        data: data.data || {},
+      };
+      event.waitUntil(self.registration.showNotification(title, options));
+    } catch {
+      const text = event.data.text();
+      event.waitUntil(
+        self.registration.showNotification('⚡ SUGA Outage Alert', {
+          body: text,
+          icon: '/icons/icon-192.svg',
+          badge: '/icons/icon-192.svg',
+        })
+      );
+    }
+  }
+});

@@ -12,9 +12,11 @@ import { StatusFeed } from '@/components/StatusFeed';
 import { CalendarView } from '@/components/CalendarView';
 import { DetailModal } from '@/components/DetailModal';
 import { PinAreaDialog } from '@/components/PinAreaDialog';
+import { NotificationDialog } from '@/components/NotificationDialog';
 import { BottomNav, ActiveTab } from '@/components/BottomNav';
 import { DisclaimerBanner } from '@/components/DisclaimerBanner';
 import { SystemErrorToast } from '@/components/SystemErrorToast';
+import { evaluateOutageNotifications, getNotificationPermission } from '@/lib/notification-manager';
 
 export default function Home() {
   // Initial state hydrated instantly from offline cache if available
@@ -40,12 +42,26 @@ export default function Home() {
   const [selectedItem, setSelectedItem] = useState<Interruption | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPinDialogOpen, setIsPinDialogOpen] = useState(false);
+  const [isNotificationDialogOpen, setIsNotificationDialogOpen] = useState(false);
+  const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
   const [lastSyncedText, setLastSyncedText] = useState(() => {
     if (typeof window === 'undefined') return 'Checking...';
     const cached = loadCachedOutages();
     return cached?.cachedAt ? formatCachedTime(cached.cachedAt) : 'Checking...';
   });
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Sync notification permission status on mount
+  useEffect(() => {
+    setHasNotificationPermission(getNotificationPermission() === 'granted');
+  }, []);
+
+  // Run notification evaluation engine whenever outages or favorites change
+  useEffect(() => {
+    if (outages.length > 0 && favorites.length > 0) {
+      evaluateOutageNotifications(outages, favorites);
+    }
+  }, [outages, favorites]);
 
   // Error state for system-down popup
   const [fetchError, setFetchError] = useState(false);
@@ -213,6 +229,9 @@ export default function Home() {
         lastSyncedText={lastSyncedText}
         isSyncing={isSyncing}
         onSync={handleSync}
+        onOpenNotifications={() => setIsNotificationDialogOpen(true)}
+        favoritesCount={favorites.length}
+        hasNotificationPermission={hasNotificationPermission}
       />
 
       {/* Disclaimer Banner */}
@@ -308,6 +327,16 @@ export default function Home() {
         onClose={() => setIsPinDialogOpen(false)}
         favorites={favorites}
         onToggleFavorite={handleToggleFavorite}
+      />
+
+      <NotificationDialog
+        isOpen={isNotificationDialogOpen}
+        onClose={() => {
+          setIsNotificationDialogOpen(false);
+          setHasNotificationPermission(getNotificationPermission() === 'granted');
+        }}
+        favorites={favorites}
+        onOpenPinDialog={() => setIsPinDialogOpen(true)}
       />
 
       <BottomNav 
