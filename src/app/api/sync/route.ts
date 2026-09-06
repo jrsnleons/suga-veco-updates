@@ -7,45 +7,41 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 function verifyCronAuth(request: NextRequest): boolean {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    // No secret configured, allow all requests (zero-friction setup)
-    return true;
-  }
-
-  // Check Bearer token in Authorization header (standard for Vercel Cron & HTTP headers)
-  const authHeader = request.headers.get('authorization');
-  if (authHeader && authHeader === `Bearer ${cronSecret}`) {
-    return true;
-  }
-
-  // Check custom headers
-  const customHeader = request.headers.get('x-cron-secret');
-  if (customHeader && customHeader === cronSecret) {
-    return true;
-  }
-
-  // Check URL query parameters (useful for cron-job.org / webhooks)
-  const { searchParams } = new URL(request.url);
-  const secretParam = searchParams.get('secret') || searchParams.get('token');
-  if (secretParam && secretParam === cronSecret) {
-    return true;
-  }
-
-  // Allow same-origin POST requests from the frontend UI refresh button
-  if (request.method === 'POST') {
-    const origin = request.headers.get('origin') || '';
-    const host = request.headers.get('host') || '';
-    if (origin && host && origin.includes(host)) {
+  try {
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret) {
+      // No secret configured, allow all requests (zero-friction setup)
       return true;
     }
-    // Also allow direct fetch with no origin (e.g. server-side/dev environment)
-    if (!origin) {
+
+    // Check Bearer token in Authorization header (standard for Vercel Cron & HTTP headers)
+    const authHeader = request.headers.get('authorization');
+    if (authHeader && authHeader === `Bearer ${cronSecret}`) {
       return true;
     }
-  }
 
-  return false;
+    // Check custom headers
+    const customHeader = request.headers.get('x-cron-secret');
+    if (customHeader && customHeader === cronSecret) {
+      return true;
+    }
+
+    // Check URL query parameters safely using request.nextUrl
+    const secretParam = request.nextUrl.searchParams.get('secret') || request.nextUrl.searchParams.get('token');
+    if (secretParam && secretParam === cronSecret) {
+      return true;
+    }
+
+    // Allow browser POST requests
+    if (request.method === 'POST') {
+      return true;
+    }
+
+    return false;
+  } catch (err) {
+    console.warn('[API /api/sync] Auth check error:', err);
+    return false;
+  }
 }
 
 async function handleSync(request: NextRequest) {

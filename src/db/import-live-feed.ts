@@ -226,6 +226,4 @@ export async function importLiveFeed(): Promise<number> {
   return statements.length;
 }
 
-if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module) {
-  importLiveFeed().catch(console.error);
-}
+
