@@ -176,7 +176,7 @@ export async function reconcileAllInterruptions(targetDate?: string): Promise<Re
   if (batchStatements.length > 0) {
     console.log(`[Superseder] Writing ${batchStatements.length} reconciled updates in batches...`);
     for (let i = 0; i < batchStatements.length; i += 100) {
-      await db.batch(batchStatements.slice(i, i + 100), 'write');
+      await db.batch(batchStatements.slice(i, i + 100));
     }
   }
 

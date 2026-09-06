@@ -207,7 +207,7 @@ export async function importLiveFeed(): Promise<number> {
   console.log(`Executing batch writes for ${statements.length} items...`);
   const CHUNK_SIZE = 100;
   for (let i = 0; i < statements.length; i += CHUNK_SIZE) {
-    await db.batch(statements.slice(i, i + CHUNK_SIZE), 'write');
+    await db.batch(statements.slice(i, i + CHUNK_SIZE));
   }
 
   console.log(`Reconciling interruptions to apply area-specific superseding...`);
