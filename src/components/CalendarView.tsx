@@ -270,7 +270,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ outages, onOpenDetai
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={`Search within ${selectedDay.isToday ? 'Today' : selectedDay.day}...`} 
-              className="w-full pl-2 pr-7 bg-transparent text-[13px] text-[var(--label-primary)] placeholder:text-[var(--label-tertiary)] focus:outline-none"
+              className="w-full pl-2 pr-7 bg-transparent text-[16px] sm:text-[13px] text-[var(--label-primary)] placeholder:text-[var(--label-tertiary)] focus:outline-none"
             />
             {searchQuery && (
               <button 

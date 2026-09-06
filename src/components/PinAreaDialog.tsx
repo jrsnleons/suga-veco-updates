@@ -178,7 +178,10 @@ export const PinAreaDialog: React.FC<PinAreaDialogProps> = ({
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search Cebu City, Lahug, Mandaue..." 
               aria-label="Search city or barangay"
-              className="w-full pl-2.5 pr-6 bg-transparent text-[14px] text-[var(--label-primary)] placeholder:text-[var(--label-tertiary)] focus:outline-none"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck="false"
+              className="w-full pl-2.5 pr-6 bg-transparent text-[16px] sm:text-[14px] text-[var(--label-primary)] placeholder:text-[var(--label-tertiary)] focus:outline-none"
             />
             {search && (
               <button 

@@ -90,7 +90,7 @@ export const GridPulseView: React.FC<GridPulseViewProps> = ({
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search your barangay, street, or city (e.g. Lahug, Banilad)..."
               aria-label="Universal power outage search"
-              className="w-full pl-3 pr-8 bg-transparent text-[14px] sm:text-[15px] text-[var(--label-primary)] placeholder:text-[var(--label-tertiary)] focus:outline-none font-medium"
+              className="w-full pl-3 pr-8 bg-transparent text-[16px] sm:text-[15px] text-[var(--label-primary)] placeholder:text-[var(--label-tertiary)] focus:outline-none font-medium"
             />
             {searchQuery && (
               <button

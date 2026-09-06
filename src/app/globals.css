@@ -443,3 +443,14 @@ body {
 .custom-barangay-tooltip::before {
   border-top-color: var(--elevated-surface, #18181b) !important;
 }
+
+/* -------------------------------------------------------------------------- */
+/* iOS Safari Input Auto-Zoom Prevention                                      */
+/* -------------------------------------------------------------------------- */
+
+@media screen and (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+    touch-action: manipulation;
+  }
+}
