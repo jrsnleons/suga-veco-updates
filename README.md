@@ -68,6 +68,7 @@ This stack is **100% free forever** with zero credit card required:
 3. In **Settings > Environment Variables**, add:
    - `TURSO_DATABASE_URL`: `libsql://veco-db-[your-username].turso.io`
    - `TURSO_AUTH_TOKEN`: `(your token from Step 1)`
+   - `CARTO_API_KEY`: `(CARTO basemaps API key from carto.com/basemaps/apikey - kept secure on server, not exposed in browser)`
 4. Click **Deploy**. Your live site will now query Turso Cloud SQLite instantly!
 
 ---

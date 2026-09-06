@@ -1,5 +1,5 @@
 // SUGA PWA Service Worker
-const CACHE_NAME = 'suga-cache-v1';
+const CACHE_NAME = 'suga-cache-v2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -36,12 +36,12 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // If requesting API outages: Network-first, fallback to cache
-  if (url.pathname.startsWith('/api/outages')) {
+  // If requesting API routes (outages, tiles, sync): Network-first
+  if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          if (response && response.status === 200) {
+          if (response && response.status === 200 && url.pathname.startsWith('/api/outages')) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           }

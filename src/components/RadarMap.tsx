@@ -4,14 +4,17 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Radio, Clock, MapPin, Layers, Navigation2, 
-  ChevronRight 
+  ChevronRight, Check 
 } from 'lucide-react';
-import type { Map as LeafletMap, LayerGroup as LeafletLayerGroup } from 'leaflet';
+import type { Map as LeafletMap, LayerGroup as LeafletLayerGroup, TileLayer as LeafletTileLayer } from 'leaflet';
 import { Interruption } from '@/types';
 import { 
   METRO_CEBU_CENTER, CEBU_MUNICIPALITIES, 
   resolveCoordinates 
 } from '@/lib/geo-data';
+import { 
+  BasemapStyle, BASEMAP_STYLES, getBasemapTileUrl 
+} from '@/lib/basemap';
 import 'leaflet/dist/leaflet.css';
 
 interface RadarMapProps {
@@ -24,11 +27,34 @@ export const RadarMap: React.FC<RadarMapProps> = ({ outages, onOpenDetail }) => 
   const mapInstanceRef = useRef<LeafletMap | null>(null);
   const markersGroupRef = useRef<LeafletLayerGroup | null>(null);
   const circlesGroupRef = useRef<LeafletLayerGroup | null>(null);
+  const tileLayerRef = useRef<LeafletTileLayer | null>(null);
+  const styleMenuRef = useRef<HTMLDivElement>(null);
 
   const [selectedCity, setSelectedCity] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'ongoing' | 'upcoming'>('all');
   const [selectedOutage, setSelectedOutage] = useState<Interruption | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
+  const [basemapStyle, setBasemapStyle] = useState<BasemapStyle>('voyager');
+  const [isStyleMenuOpen, setIsStyleMenuOpen] = useState(false);
+
+  // Close basemap style menu when clicking outside
+  useEffect(() => {
+    if (!isStyleMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (styleMenuRef.current && !styleMenuRef.current.contains(e.target as Node)) {
+        setIsStyleMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isStyleMenuOpen]);
+
+  // Update Tile Layer URL when basemapStyle changes
+  useEffect(() => {
+    if (!tileLayerRef.current) return;
+    const nextTileUrl = getBasemapTileUrl(basemapStyle);
+    tileLayerRef.current.setUrl(nextTileUrl);
+  }, [basemapStyle]);
 
   // Filter outages
   const filteredOutages = useMemo(() => {
@@ -55,12 +81,7 @@ export const RadarMap: React.FC<RadarMapProps> = ({ outages, onOpenDetail }) => 
 
       if (!isMounted || !mapContainerRef.current) return;
 
-      const isDark = document.documentElement.classList.contains('dark') ||
-        document.documentElement.getAttribute('data-theme') === 'dark';
-
-      const tileUrl = isDark
-        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+      const tileUrl = getBasemapTileUrl('voyager');
 
       const map = L.map(mapContainerRef.current, {
         center: [METRO_CEBU_CENTER.lat, METRO_CEBU_CENTER.lng],
@@ -69,10 +90,12 @@ export const RadarMap: React.FC<RadarMapProps> = ({ outages, onOpenDetail }) => 
         attributionControl: false,
       });
 
-      L.tileLayer(tileUrl, {
+      const tileLayer = L.tileLayer(tileUrl, {
         maxZoom: 19,
         subdomains: 'abcd',
       }).addTo(map);
+
+      tileLayerRef.current = tileLayer;
 
       // Add zoom control in bottom-right corner
       L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -94,6 +117,7 @@ export const RadarMap: React.FC<RadarMapProps> = ({ outages, onOpenDetail }) => 
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
+        tileLayerRef.current = null;
       }
     };
   }, []);
@@ -309,15 +333,66 @@ export const RadarMap: React.FC<RadarMapProps> = ({ outages, onOpenDetail }) => 
           </div>
         </div>
 
-        {/* Quick Reset Center Button */}
-        <button
-          onClick={() => handleCitySelect('all')}
-          className="absolute top-3 right-3 z-10 p-2.5 rounded-2xl bg-[var(--secondary-bg)]/90 backdrop-blur-md border border-[var(--hairline)] text-[var(--label-primary)] hover:text-[var(--accent-blue)] transition-colors shadow-md cursor-pointer"
-          title="Reset to Metro Cebu Center"
-          aria-label="Reset to Metro Cebu Center"
-        >
-          <Navigation2 className="w-4 h-4" />
-        </button>
+        {/* Top-Right Action Controls */}
+        <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+          {/* Basemap Style Selector Dropdown */}
+          <div ref={styleMenuRef} className="relative">
+            <button
+              onClick={() => setIsStyleMenuOpen(!isStyleMenuOpen)}
+              className="p-2 sm:px-3 sm:py-2 rounded-2xl bg-[var(--secondary-bg)]/90 backdrop-blur-md border border-[var(--hairline)] text-[var(--label-primary)] hover:text-[var(--accent-blue)] transition-colors shadow-md cursor-pointer flex items-center gap-1.5 text-xs font-mono-tabular"
+              title="Basemap Layer Options"
+              aria-label="Basemap Layer Options"
+              aria-expanded={isStyleMenuOpen}
+            >
+              <Layers className="w-4 h-4 text-[var(--accent-blue)]" />
+              <span className="hidden sm:inline font-medium capitalize">{BASEMAP_STYLES[basemapStyle].name}</span>
+            </button>
+
+            {isStyleMenuOpen && (
+              <div className="absolute right-0 mt-2 w-48 rounded-2xl bg-[var(--elevated-surface)]/95 backdrop-blur-xl border border-[var(--hairline)] shadow-2xl p-1.5 z-20 space-y-1">
+                <div className="px-2 py-1 text-[10px] font-bold text-[var(--label-tertiary)] uppercase tracking-wider">
+                  Basemap Layer
+                </div>
+                {(Object.keys(BASEMAP_STYLES) as BasemapStyle[]).map((styleKey) => {
+                  const styleInfo = BASEMAP_STYLES[styleKey];
+                  const isSelected = basemapStyle === styleKey;
+                  return (
+                    <button
+                      key={styleKey}
+                      onClick={() => {
+                        setBasemapStyle(styleKey);
+                        setIsStyleMenuOpen(false);
+                      }}
+                      className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-[var(--accent-blue)] text-white font-medium shadow-xs'
+                          : 'text-[var(--label-primary)] hover:bg-[var(--tertiary-fill)]'
+                      }`}
+                    >
+                      <div className="flex flex-col">
+                        <span className="font-semibold leading-tight">{styleInfo.name}</span>
+                        <span className={`text-[10px] ${isSelected ? 'text-white/80' : 'text-[var(--label-secondary-alpha)]'}`}>
+                          {styleInfo.description}
+                        </span>
+                      </div>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-white shrink-0 ml-2" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Quick Reset Center Button */}
+          <button
+            onClick={() => handleCitySelect('all')}
+            className="p-2 sm:p-2.5 rounded-2xl bg-[var(--secondary-bg)]/90 backdrop-blur-md border border-[var(--hairline)] text-[var(--label-primary)] hover:text-[var(--accent-blue)] transition-colors shadow-md cursor-pointer"
+            title="Reset to Metro Cebu Center"
+            aria-label="Reset to Metro Cebu Center"
+          >
+            <Navigation2 className="w-4 h-4" />
+          </button>
+        </div>
 
         {/* Selected Pin Bottom Preview Card */}
         {selectedOutage && (
@@ -370,17 +445,22 @@ export const RadarMap: React.FC<RadarMapProps> = ({ outages, onOpenDetail }) => 
       </div>
 
       {/* Selected Scope Footnote */}
-      <div className="px-1 text-xs text-[var(--label-secondary-alpha)] flex items-center justify-between font-mono-tabular">
+      <div className="px-1 text-xs text-[var(--label-secondary-alpha)] flex flex-wrap items-center justify-between gap-2 font-mono-tabular">
         <span>Showing {filteredOutages.length} zones across {selectedCity === 'all' ? 'Metro Cebu' : selectedCity}</span>
-        <button
-          onClick={() => {
-            setSelectedCity('all');
-            setStatusFilter('all');
-          }}
-          className="text-[var(--accent-blue)] hover:underline cursor-pointer"
-        >
-          Reset Filters
-        </button>
+        <div className="flex items-center gap-3 text-[11px]">
+          <span className="opacity-75">
+            Tiles © <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer" className="hover:underline">CARTO</a> • © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="hover:underline">OSM</a>
+          </span>
+          <button
+            onClick={() => {
+              setSelectedCity('all');
+              setStatusFilter('all');
+            }}
+            className="text-[var(--accent-blue)] hover:underline cursor-pointer"
+          >
+            Reset Filters
+          </button>
+        </div>
       </div>
     </div>
   );
