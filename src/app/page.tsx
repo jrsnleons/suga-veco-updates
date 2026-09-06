@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Interruption } from '@/types';
 import { enrichWithLiveStatus } from '@/lib/status-utils';
@@ -50,7 +50,8 @@ export default function Home() {
   // Error state for system-down popup
   const [fetchError, setFetchError] = useState(false);
   const [fetchErrorMessage, setFetchErrorMessage] = useState('');
-  const failureCountRef = React.useRef(0);
+  const failureCountRef = useRef(0);
+  const lastFetchTimeRef = useRef(0);
 
   const saveFavorites = (favs: string[]) => {
     setFavorites(favs);
@@ -77,6 +78,7 @@ export default function Home() {
         return res.json();
       })
       .then(data => {
+        lastFetchTimeRef.current = Date.now();
         if (data.data) {
           const enriched = data.data.map((o: Interruption) => enrichWithLiveStatus(o));
           setOutages(enriched);
@@ -126,6 +128,22 @@ export default function Home() {
       setOutages(prev => prev.map(o => enrichWithLiveStatus(o)));
     }, 30000);
 
+    // Auto-revalidate when returning to tab or regaining focus
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // If more than 2 minutes elapsed since last fetch, re-check immediately
+        if (Date.now() - lastFetchTimeRef.current > 120000) {
+          loadOutages();
+        }
+      }
+    };
+
+    const handleFocus = () => {
+      if (Date.now() - lastFetchTimeRef.current > 120000) {
+        loadOutages();
+      }
+    };
+
     // Monitor online/offline events
     const handleOnline = () => {
       loadOutages();
@@ -135,6 +153,8 @@ export default function Home() {
       setLastSyncedText(cached?.cachedAt ? formatCachedTime(cached.cachedAt) : 'Offline');
     };
 
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
@@ -142,6 +162,8 @@ export default function Home() {
       controller.abort();
       clearInterval(interval);
       clearInterval(clockTick);
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
@@ -150,7 +172,7 @@ export default function Home() {
   // Handle Manual Sync
   const handleSync = async () => {
     setIsSyncing(true);
-    setLastSyncedText('Scraping FB feed...');
+    setLastSyncedText('Syncing feed...');
     try {
       const res = await fetch('/api/sync', { method: 'POST' });
       if (res.ok) {
@@ -163,19 +185,13 @@ export default function Home() {
         setLastSyncedText('Synced just now');
         setFetchError(false);
         failureCountRef.current = 0;
+        lastFetchTimeRef.current = Date.now();
       } else {
-        setLastSyncedText('Sync skipped');
-        setFetchError(true);
-        setFetchErrorMessage(
-          'The data sync could not be completed. The scraping service may be temporarily down. Existing schedules are still displayed.'
-        );
+        // Fallback to fetching outages directly
+        loadOutages();
       }
     } catch {
-      setLastSyncedText('Sync unavailable');
-      setFetchError(true);
-      setFetchErrorMessage(
-        'Could not connect to the sync service. Please check your internet connection and try again.'
-      );
+      loadOutages();
     } finally {
       setIsSyncing(false);
     }

@@ -105,12 +105,12 @@ export async function reconcileAllInterruptions(targetDate?: string): Promise<Re
     args: targetDate ? [targetDate] : []
   });
 
-  for (const r of allRes.rows as any[]) {
-    const prec = computePrecedenceScore(r);
-    await db.execute({
-      sql: 'UPDATE interruptions SET precedence = ? WHERE id = ?',
-      args: [prec, r.id]
-    });
+  const precStatements = (allRes.rows as any[]).map(r => ({
+    sql: 'UPDATE interruptions SET precedence = ? WHERE id = ?',
+    args: [computePrecedenceScore(r), r.id]
+  }));
+  for (let i = 0; i < precStatements.length; i += 50) {
+    await db.batch(precStatements.slice(i, i + 50), 'write');
   }
 
   // 2. Deduplicate identical slots if any (same date, same time_start, same city & area_title)
@@ -125,17 +125,21 @@ export async function reconcileAllInterruptions(targetDate?: string): Promise<Re
     args: targetDate ? [targetDate] : []
   });
 
+  const dupStatements: { sql: string; args: any[] }[] = [];
   let dupRemoved = 0;
   for (const d of dupRes.rows as any[]) {
     const allIds: number[] = String(d.ids).split(',').map(Number);
     const dropIds = allIds.filter(id => id !== Number(d.keep_id));
     for (const dropId of dropIds) {
-      await db.execute({
+      dupStatements.push({
         sql: 'UPDATE interruptions SET is_superseded = 1, superseded_by_id = ? WHERE id = ?',
         args: [d.keep_id, dropId]
       });
       dupRemoved++;
     }
+  }
+  for (let i = 0; i < dupStatements.length; i += 50) {
+    await db.batch(dupStatements.slice(i, i + 50), 'write');
   }
   if (dupRemoved > 0) {
     console.log(`[Superseder] Cleaned ${dupRemoved} duplicate slot(s).`);
@@ -165,64 +169,77 @@ export async function reconcileAllInterruptions(targetDate?: string): Promise<Re
       `,
       args: [date]
     });
-    const records = recordsRes.rows as any[];
 
-    for (let i = 0; i < records.length; i++) {
-      const top = records[i];
-      const checkTopRes = await db.execute({
-        sql: 'SELECT is_superseded FROM interruptions WHERE id = ?',
-        args: [top.id]
-      });
-      const checkTop: any = checkTopRes.rows[0];
-      if (checkTop?.is_superseded) continue;
+    interface MutableRecord {
+      id: number;
+      city: string;
+      barangays: string[];
+      isSuperseded: boolean;
+      supersededById?: number;
+      areaTitle: string;
+      dirty: boolean;
+    }
 
-      let topBrgys: string[] = [];
-      try { topBrgys = JSON.parse(top.barangays_json || '[]'); } catch {}
-      if (topBrgys.length === 0) continue;
+    const mutableRecords: MutableRecord[] = (recordsRes.rows as any[]).map(r => {
+      let b: string[] = [];
+      try { b = JSON.parse(r.barangays_json || '[]'); } catch {}
+      return {
+        id: Number(r.id),
+        city: r.city,
+        barangays: b,
+        isSuperseded: false,
+        areaTitle: r.area_title,
+        dirty: false,
+      };
+    });
 
-      const topLower = new Set(topBrgys.map((b: string) => b.toLowerCase().trim()));
+    for (let i = 0; i < mutableRecords.length; i++) {
+      const top = mutableRecords[i];
+      if (top.isSuperseded || top.barangays.length === 0) continue;
 
-      for (let j = i + 1; j < records.length; j++) {
-        const lower = records[j];
-        const checkLowerRes = await db.execute({
-          sql: 'SELECT is_superseded, barangays_json FROM interruptions WHERE id = ?',
-          args: [lower.id]
-        });
-        const checkLower: any = checkLowerRes.rows[0];
-        if (checkLower?.is_superseded) continue;
+      const topLower = new Set(top.barangays.map(b => b.toLowerCase().trim()));
 
-        let lowerBrgys: string[] = [];
-        try { lowerBrgys = JSON.parse(checkLower.barangays_json || '[]'); } catch {}
-        if (lowerBrgys.length === 0) continue;
+      for (let j = i + 1; j < mutableRecords.length; j++) {
+        const lower = mutableRecords[j];
+        if (lower.isSuperseded || lower.barangays.length === 0) continue;
 
-        const overlap = lowerBrgys.filter((b: string) => topLower.has(b.toLowerCase().trim()));
+        const overlap = lower.barangays.filter(b => topLower.has(b.toLowerCase().trim()));
         if (overlap.length === 0) continue;
 
-        const remaining = lowerBrgys.filter((b: string) => !topLower.has(b.toLowerCase().trim()));
+        const remaining = lower.barangays.filter(b => !topLower.has(b.toLowerCase().trim()));
 
         if (remaining.length === 0) {
-          await db.execute({
-            sql: `
-              UPDATE interruptions 
-              SET is_superseded = 1, superseded_by_id = ?, updated_at = CURRENT_TIMESTAMP
-              WHERE id = ?
-            `,
-            args: [top.id, lower.id]
-          });
+          lower.isSuperseded = true;
+          lower.supersededById = top.id;
+          lower.dirty = true;
           totalSuperseded++;
         } else {
-          const newTitle = formatAreaTitle(remaining, lower.city);
-          await db.execute({
-            sql: `
-              UPDATE interruptions 
-              SET barangays_json = ?, area_title = ?, updated_at = CURRENT_TIMESTAMP
-              WHERE id = ?
-            `,
-            args: [JSON.stringify(remaining), newTitle, lower.id]
-          });
+          lower.barangays = remaining;
+          lower.areaTitle = formatAreaTitle(remaining, lower.city);
+          lower.dirty = true;
           totalTrimmed++;
         }
       }
+    }
+
+    const batchStatements: { sql: string; args: any[] }[] = [];
+    for (const rec of mutableRecords) {
+      if (!rec.dirty) continue;
+      if (rec.isSuperseded) {
+        batchStatements.push({
+          sql: 'UPDATE interruptions SET is_superseded = 1, superseded_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+          args: [rec.supersededById, rec.id]
+        });
+      } else {
+        batchStatements.push({
+          sql: 'UPDATE interruptions SET barangays_json = ?, area_title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+          args: [JSON.stringify(rec.barangays), rec.areaTitle, rec.id]
+        });
+      }
+    }
+
+    if (batchStatements.length > 0) {
+      await db.batch(batchStatements, 'write');
     }
   }
 

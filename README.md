@@ -1,6 +1,6 @@
 # ⚡ VECO Brownout Tracker (Visayan Electric — Cebu)
 
-A clean, minimalist, and searchable power interruption web application and automated Facebook scraper built for Cebu residents. Designed following Apple Human Interface Guidelines and the shadcn/ui zinc dark palette.
+A clean, minimalist, and searchable power interruption web application and automated advisory synchronization system built for Cebu residents. Designed following Apple Human Interface Guidelines and the shadcn/ui zinc dark palette.
 
 ---
 
@@ -12,7 +12,9 @@ A clean, minimalist, and searchable power interruption web application and autom
 - **📜 Outage Archive**: High-density compact summary of historical data with perpetual retention.
 - **📍 Estimated Affected Zone Map**: Visual radar sector map inside the detail modal with direct Google Maps integration.
 - **🔗 Original Facebook Source Links**: Every schedule card links directly to the official VECO post.
-- **🤖 Automated Facebook Scraper**: Passive `/api/graphql/` interception using Patchright (stealth Playwright). Runs every 30 minutes with zero OCR overhead.
+- **🔄 Stale-While-Revalidate (SWR) Sync**: Automatic background revalidation whenever residents open the app if data is older than 30 minutes.
+- **🔄 Tactile UI Refresh**: Interactive one-tap refresh button in the header for instantaneous manual synchronizations.
+- **🤖 Area-Specific Superseder**: Automatically overrides earlier weekly plans with specific daily/hourly post updates per barangay.
 
 ---
 
@@ -21,17 +23,16 @@ A clean, minimalist, and searchable power interruption web application and autom
 - **Framework**: Next.js 16 (App Router, Turbopack) + TypeScript
 - **Styling**: Tailwind CSS v4 (shadcn/ui zinc-950 dark theme)
 - **Database**: LibSQL (`@libsql/client`), dual-mode supporting both local SQLite (`data/veco.db`) and remote Turso Cloud SQLite
-- **Scraper**: `patchright` (stealth Playwright) + GitHub Actions automated cron
-- **Area-Specific Superseder**: Automatically overrides earlier weekly plans with specific daily/hourly post updates per barangay
+- **Automation**: Stale-While-Revalidate On-Demand Serverless Sync + 30-minute Cloud Cron (`vercel.json` / `cron-job.org`)
 
 ---
 
-## 🚀 100% Free Cloud Deployment Guide (Turso + Vercel + GitHub Actions)
+## 🚀 100% Free Cloud Deployment Guide (Turso + Vercel)
 
 This stack is **100% free forever** with zero credit card required:
 - **Turso (LibSQL)**: Cloud SQLite database (9GB free, 1 billion row reads/month).
-- **Vercel**: Global Next.js hosting and edge API routes.
-- **GitHub Actions**: Automated 30-minute scraper running Playwright/Chromium (2,000 free runner minutes/month).
+- **Vercel**: Global Next.js hosting, Edge API routes, and Serverless Cron.
+- **Zero GitHub Actions runner minutes required!**
 
 ### Step 1: Create Free Turso Database
 
@@ -68,26 +69,25 @@ This stack is **100% free forever** with zero credit card required:
 3. In **Settings > Environment Variables**, add:
    - `TURSO_DATABASE_URL`: `libsql://veco-db-[your-username].turso.io`
    - `TURSO_AUTH_TOKEN`: `(your token from Step 1)`
-   - `CARTO_API_KEY`: `(CARTO basemaps API key from carto.com/basemaps/apikey - kept secure on server, not exposed in browser)`
-4. Click **Deploy**. Your live site will now query Turso Cloud SQLite instantly!
+   - `CRON_SECRET`: `(generate any random string, e.g. "my-secret-token-123")`
+   - `CARTO_API_KEY`: `(CARTO basemaps API key from carto.com/basemaps/apikey - kept secure on server)`
+4. Click **Deploy**. Your live site is now active!
 
 ---
 
-### Step 3: Configure 30-Minute Automated Scraper (GitHub Actions)
+### Step 3: Automated 30-Minute Updates
 
-The repository includes a ready-to-run GitHub Actions workflow at [`.github/workflows/scrape.yml`](.github/workflows/scrape.yml).
+Your deployment is automatically kept fresh in two complementary ways:
 
-1. In your GitHub repository, go to **Settings > Secrets and variables > Actions**.
-2. Click **New repository secret** and add:
-   - `TURSO_DATABASE_URL`: `libsql://veco-db-[your-username].turso.io`
-   - `TURSO_AUTH_TOKEN`: `(your token from Step 1)`
-3. That's it! GitHub Actions will now automatically:
-   - Run every 30 minutes.
-   - Launch stealth headless Chromium.
-   - Scrape the latest VECO Facebook advisories.
-   - Run the area-specific superseding algorithm.
-   - Persist new updates directly to your Turso Cloud database.
-4. You can also manually trigger a scrape at any time by going to the **Actions** tab on GitHub and clicking **Run workflow**.
+1. **Automatic On-Demand Background Sync (Built-in)**:
+   - When any visitor opens your website, if data has not been updated in the last 30 minutes, `/api/outages` serves cached data immediately and transparently synchronizes fresh advisories in the background.
+
+2. **Scheduled 30-Minute Cloud Cron**:
+   - `vercel.json` includes the 30-minute cron configuration for `/api/sync`.
+   - **For 100% free external cron triggering** (e.g., via [cron-job.org](https://cron-job.org)):
+     - Create a free job on `cron-job.org` pointing to `https://[your-app].vercel.app/api/sync?secret=YOUR_CRON_SECRET`
+     - Set the schedule to **Every 30 minutes**.
+     - It runs in <500ms and consumes 0 GitHub runner minutes.
 
 ---
 
@@ -112,9 +112,9 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## Running the Scraper Locally
+## Local Scraper & Tooling
 
-- To run a single scrape cycle:
+- To run a direct scrape locally:
   ```bash
   npm run scrape
   ```
@@ -122,4 +122,3 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
   ```bash
   npm run scheduler
   ```
-

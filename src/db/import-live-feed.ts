@@ -1,4 +1,4 @@
-import { insertOrUpdateInterruption, logScrapeRun, REAL_FB_POSTS } from './index';
+import { db, initDbSchema, computePrecedenceScore, logScrapeRun, REAL_FB_POSTS } from './index';
 import { Interruption, InterruptionStatus, InterruptionType } from '@/types';
 import { computeLiveStatus } from '../lib/status-utils';
 import { reconcileAllInterruptions } from '../parser/superseder';
@@ -48,6 +48,8 @@ function getLiveFeedFbPost(item: { id: number; date?: string; reason?: string; s
 }
 
 export async function importLiveFeed(): Promise<number> {
+  const startTime = Date.now();
+  await initDbSchema();
   console.log('Fetching live outages from published feed...');
   const res = await fetch('https://eulclavie.com/demowebsites/veco-outage/outages.json');
   if (!res.ok) {
@@ -55,9 +57,10 @@ export async function importLiveFeed(): Promise<number> {
   }
 
   const data: any[] = await res.json();
-  console.log(`Received ${data.length} items from live feed. Importing...`);
+  console.log(`Received ${data.length} items from live feed. Preparing batch statements...`);
 
-  let count = 0;
+  const statements: { sql: string; args: any[] }[] = [];
+
   for (const item of data) {
     const timeDisplay = `${formatTime12(item.start)} – ${formatTime12(item.end)}`;
     
@@ -142,25 +145,87 @@ export async function importLiveFeed(): Promise<number> {
       outcome: status === 'restored' ? 'restored' : (status === 'cancelled' ? 'cancelled' : undefined)
     };
 
-    await insertOrUpdateInterruption(interruption);
-    count++;
+    const precedence = computePrecedenceScore(interruption);
+
+    statements.push({
+      sql: `
+        INSERT INTO interruptions (
+          fb_post_id, fb_post_url, fb_image_url, date, date_label, time_start, time_end, time_display,
+          type, status, status_label, area_title, city, barangays_json, streets,
+          reason, fb_caption, fb_post_time, is_past, outcome, is_superseded, superseded_by_id, precedence
+        ) VALUES (
+          ?, ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?, ?
+        )
+        ON CONFLICT(fb_post_id, date, time_start) DO UPDATE SET
+          fb_post_url = COALESCE(excluded.fb_post_url, interruptions.fb_post_url),
+          status = excluded.status,
+          status_label = excluded.status_label,
+          outcome = excluded.outcome,
+          reason = excluded.reason,
+          area_title = excluded.area_title,
+          city = excluded.city,
+          barangays_json = excluded.barangays_json,
+          streets = excluded.streets,
+          fb_caption = excluded.fb_caption,
+          fb_image_url = excluded.fb_image_url,
+          is_past = excluded.is_past,
+          is_superseded = excluded.is_superseded,
+          superseded_by_id = excluded.superseded_by_id,
+          precedence = excluded.precedence,
+          updated_at = CURRENT_TIMESTAMP
+      `,
+      args: [
+        interruption.fbPostId,
+        interruption.fbPostUrl || null,
+        interruption.fbImageUrl || null,
+        interruption.date,
+        interruption.dateLabel,
+        interruption.timeStart,
+        interruption.timeEnd,
+        interruption.time,
+        interruption.type,
+        interruption.status,
+        interruption.statusLabel,
+        interruption.area,
+        interruption.city,
+        JSON.stringify(interruption.barangays),
+        interruption.streets || null,
+        interruption.reason || null,
+        interruption.fbCaption || null,
+        interruption.fbTime || null,
+        interruption.isPast ? 1 : 0,
+        interruption.outcome || null,
+        interruption.isSuperseded ? 1 : 0,
+        interruption.supersededById || null,
+        precedence,
+      ]
+    });
+  }
+
+  console.log(`Executing batch writes for ${statements.length} items...`);
+  const CHUNK_SIZE = 30;
+  for (let i = 0; i < statements.length; i += CHUNK_SIZE) {
+    await db.batch(statements.slice(i, i + CHUNK_SIZE), 'write');
   }
 
   console.log(`Reconciling interruptions to apply area-specific superseding...`);
   const stats = await reconcileAllInterruptions();
   console.log(`Reconciliation complete: ${stats.activeCount} active, ${stats.supersededCount} superseded, ${stats.trimmedCount} trimmed.`);
 
+  const durationMs = Date.now() - startTime;
   await logScrapeRun({
-    durationMs: 650,
-    postsFound: count,
-    newAdvisories: count,
+    durationMs,
+    postsFound: statements.length,
+    newAdvisories: statements.length,
     status: 'success'
   });
 
-  console.log(`Successfully imported and updated ${count} live advisories into SQLite!`);
-  return count;
+  console.log(`Successfully imported and updated ${statements.length} live advisories into SQLite/Turso in ${durationMs}ms!`);
+  return statements.length;
 }
 
-if (require.main === module) {
+if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module) {
   importLiveFeed().catch(console.error);
 }

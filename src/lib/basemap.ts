@@ -1,4 +1,4 @@
-export type BasemapStyle = 'voyager' | 'dark' | 'light';
+export type BasemapStyle = 'dark' | 'voyager' | 'google' | 'hybrid' | 'light';
 
 export interface BasemapStyleOption {
   name: string;
@@ -7,15 +7,25 @@ export interface BasemapStyleOption {
 }
 
 export const BASEMAP_STYLES: Record<BasemapStyle, BasemapStyleOption> = {
+  dark: {
+    name: 'Dark Voyager',
+    description: 'CARTO sleek dark mode',
+    path: 'dark_all',
+  },
   voyager: {
-    name: 'Voyager',
+    name: 'CARTO Voyager',
     description: 'CARTO detailed street map',
     path: 'voyager',
   },
-  dark: {
-    name: 'Dark Matter',
-    description: 'CARTO dark contrast',
-    path: 'dark_all',
+  google: {
+    name: 'Google Maps',
+    description: 'Standard roadmap',
+    path: 'google',
+  },
+  hybrid: {
+    name: 'Google Satellite',
+    description: 'Aerial satellite with labels',
+    path: 'hybrid',
   },
   light: {
     name: 'Positron',
@@ -37,14 +47,15 @@ export function getCartoApiKey(): string {
 
 /**
  * Resolves the basemap tile URL template for Leaflet.
- * 
- * To prevent exposing your API key in the browser and eliminate Vercel NEXT_PUBLIC_* warnings,
- * tiles are served via the server-side proxy route: `/api/tiles/{style}/{z}/{x}/{y}.png`.
- * 
- * If you prefer direct CARTO CDN requests or have a custom tile URL, set NEXT_PUBLIC_BASEMAP_URL.
+ * Supports:
+ * - CARTO Dark Voyager / Dark Matter (dark_all)
+ * - CARTO Voyager, Positron via secure proxy or direct
+ * - Google Maps standard roadmap (mt{s}.google.com/vt/lyrs=m)
+ * - Google Maps hybrid satellite (mt{s}.google.com/vt/lyrs=y)
+ * - Custom override via NEXT_PUBLIC_BASEMAP_URL
  */
 export function getBasemapTileUrl(
-  style: BasemapStyle = 'voyager',
+  style: BasemapStyle = 'dark',
   customApiKey?: string
 ): string {
   const overrideUrl = process.env.NEXT_PUBLIC_BASEMAP_URL?.trim();
@@ -58,6 +69,16 @@ export function getBasemapTileUrl(
       url = url.replace(/([?&])key=(?:YOUR_KEY|\{key\})(&|$)/, '$1').replace(/[?&]$/, '');
     }
     return url;
+  }
+
+  // Google Maps standard roadmap style
+  if (style === 'google') {
+    return 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}';
+  }
+
+  // Google Satellite with roads & labels
+  if (style === 'hybrid') {
+    return 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
   }
 
   const stylePath = BASEMAP_STYLES[style]?.path || 'voyager';
