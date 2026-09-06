@@ -8,16 +8,18 @@ export const dynamic = 'force-dynamic';
 export async function POST() {
   try {
     let result = { found: 0, newAdvisories: 0 };
-    try {
-      result = await runScrape();
-      if (result.found === 0) {
+    if (process.env.VERCEL === '1') {
+      console.log('[API /api/sync] Running on Vercel serverless runtime: syncing via published feed.');
+      const count = await importLiveFeed();
+      result = { found: count, newAdvisories: count };
+    } else {
+      try {
+        result = await runScrape();
+      } catch (err) {
+        console.warn('Facebook direct scrape fallback to live feed:', err);
         const count = await importLiveFeed();
         result = { found: count, newAdvisories: count };
       }
-    } catch (err) {
-      console.warn('Facebook direct scrape fallback to live feed:', err);
-      const count = await importLiveFeed();
-      result = { found: count, newAdvisories: count };
     }
 
     const outages = await getAllInterruptions();

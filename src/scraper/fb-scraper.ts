@@ -2,6 +2,7 @@ import { launchStealthBrowser } from './browser';
 import { parsePostText, ParsedRawPost } from '@/parser/text-parser';
 import { linkAndPersistInterruption } from '@/parser/linker';
 import { logScrapeRun, pruneOldScrapeLogs } from '@/db';
+import { importLiveFeed } from '@/db/import-live-feed';
 
 async function dispatchWebhookAlert(title: string, message: string): Promise<void> {
   const webhookUrl = process.env.SCRAPER_WEBHOOK_URL;
@@ -54,7 +55,45 @@ export async function runScrape(): Promise<{ found: number; newAdvisories: numbe
       } catch {}
     });
 
-    // 2. Auto-dismiss Guest Dialog
+    // Helper to dismiss cookie banners and login dialogs actively
+    const dismissOverlays = async () => {
+      try {
+        const cookieSelectors = [
+          'button[data-cookiebanner="accept_button"]',
+          'div[aria-label="Allow all cookies"]',
+          'button:has-text("Allow all cookies")',
+          'button:has-text("Allow essential and optional cookies")',
+          'button:has-text("Decline optional cookies")',
+        ];
+        for (const sel of cookieSelectors) {
+          const btn = page.locator(sel);
+          if (await btn.count() > 0 && await btn.first().isVisible()) {
+            await btn.first().click({ timeout: 1500 }).catch(() => {});
+            await page.waitForTimeout(600);
+            break;
+          }
+        }
+
+        const dialogCloseSelectors = [
+          'div[role="dialog"] div[aria-label="Close"]',
+          'div[role="dialog"] div[aria-label="close" i]',
+          'div[role="dialog"] button:has-text("Close")',
+          'div[role="dialog"] button:has-text("Not now")',
+          'div[aria-label="Close"]',
+        ];
+        for (const sel of dialogCloseSelectors) {
+          const btn = page.locator(sel);
+          if (await btn.count() > 0 && await btn.first().isVisible()) {
+            await btn.first().click({ timeout: 1500 }).catch(() => {});
+            await page.waitForTimeout(600);
+          }
+        }
+
+        await page.keyboard.press('Escape').catch(() => {});
+      } catch {}
+    };
+
+    // 2. Auto-dismiss Guest Dialog via locator handler
     await page.addLocatorHandler(
       page.locator('div[role="dialog"]'),
       async (dialog) => {
@@ -75,11 +114,13 @@ export async function runScrape(): Promise<{ found: number; newAdvisories: numbe
       waitUntil: 'domcontentloaded',
       timeout: 35000,
     });
-    await page.waitForTimeout(3500);
+    await page.waitForTimeout(3000);
+    await dismissOverlays();
 
     // 4. Expand "See more" buttons to reveal full advisory text
     const expandSeeMore = async () => {
       try {
+        await dismissOverlays();
         const seeMoreButtons = page.locator('div[role="button"], span[role="button"]').filter({
           hasText: /See more|Tan-awa ang dugang/i,
         });
@@ -95,15 +136,27 @@ export async function runScrape(): Promise<{ found: number; newAdvisories: numbe
     await expandSeeMore();
 
     // 5. Scroll down to trigger older advisories and expand their text
-    for (let i = 0; i < 4; i++) {
-      await page.mouse.wheel(0, 800);
-      await page.waitForTimeout(1200);
+    for (let i = 0; i < 5; i++) {
+      await page.mouse.wheel(0, 900);
+      await page.waitForTimeout(1500);
       await expandSeeMore();
     }
 
     // 6. Direct DOM Post & Image Extractor
     const domStories = await page.evaluate(() => {
-      const articles = Array.from(document.querySelectorAll('div[role="article"]'));
+      let articles = Array.from(document.querySelectorAll('div[role="article"]'));
+      
+      // Fallback: If role="article" was not detected (e.g. Facebook feed variation)
+      if (articles.length === 0) {
+        const anchors = Array.from(document.querySelectorAll('a[href*="/visayanelectriccompany/posts/"], a[href*="/visayanelectriccompany/photos/"], a[href*="/photo/"]'));
+        const containerSet = new Set<Element>();
+        for (const a of anchors) {
+          const container = a.closest('div[data-pagelet], div[tabindex="-1"], div[class*="x1yztbdb"]') || a.parentElement?.parentElement;
+          if (container) containerSet.add(container);
+        }
+        articles = Array.from(containerSet);
+      }
+
       const items: { postId: string; url?: string; text: string; img?: string }[] = [];
 
       for (const art of articles) {
@@ -151,7 +204,7 @@ export async function runScrape(): Promise<{ found: number; newAdvisories: numbe
       }
     }
   } catch (err) {
-    console.warn('[Scraper] Network or browser notice:', err);
+    console.warn('[Scraper] Direct Facebook scrape notice:', err);
   } finally {
     if (browser) {
       try { await browser.close(); } catch {}
@@ -159,9 +212,19 @@ export async function runScrape(): Promise<{ found: number; newAdvisories: numbe
   }
 
   // Deduplicate and parse collected posts
-  let newAdvisories = 0;
   const uniquePosts = deduplicatePosts(rawPosts);
+  console.log(`[Scraper] Direct scrape returned ${uniquePosts.length} post(s).`);
 
+  // Fallback to published live feed if Facebook yielded 0 posts
+  if (uniquePosts.length === 0) {
+    console.warn('[Scraper] Direct Facebook scrape found 0 posts (likely blocked or rate-limited by Facebook).');
+    console.log('[Scraper] Triggering live feed fallback to keep database and website up to date...');
+    const fallbackCount = await importLiveFeed();
+    console.log(`[Scraper] Fallback successfully imported and synchronized ${fallbackCount} advisories.`);
+    return { found: fallbackCount, newAdvisories: fallbackCount };
+  }
+
+  let newAdvisories = 0;
   for (const post of uniquePosts) {
     const parsed = parsePostText(post);
     if (parsed && parsed.area) {
@@ -239,5 +302,13 @@ function deduplicatePosts(posts: ParsedRawPost[]): ParsedRawPost[] {
 }
 
 if (require.main === module) {
-  runScrape().then(() => process.exit(0)).catch(() => process.exit(1));
+  runScrape()
+    .then((res) => {
+      console.log(`[Scraper] Run finished successfully: ${res.found} records found, ${res.newAdvisories} advisories processed.`);
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error('[Scraper] Uncaught error during scrape cycle:', err);
+      process.exit(1);
+    });
 }

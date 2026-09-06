@@ -67,11 +67,8 @@ export async function importLiveFeed(): Promise<number> {
     tomorrowDate.setDate(tomorrowDate.getDate() + 1);
     const tomorrowManila = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(tomorrowDate);
 
-    // If feed date matches today or tomorrow or has date, use it; otherwise assign dynamically
-    let dateStr = item.date || todayManila;
-    // Map initial demo dates if needed to keep data fresh
-    if (item.date === '2026-09-05') dateStr = todayManila;
-    if (item.date === '2026-09-06') dateStr = tomorrowManila;
+    // Use the advisory date directly from feed (or default to current Manila date if missing)
+    const dateStr = item.date || todayManila;
 
     let dateLabel = dateStr;
     try {

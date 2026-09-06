@@ -8,6 +8,30 @@ if (!fs.existsSync(DB_DIR)) {
   fs.mkdirSync(DB_DIR, { recursive: true });
 }
 
+// Auto-load environment variables from .env.local or .env when running in CLI/Node without Next.js
+if (!process.env.TURSO_DATABASE_URL && typeof window === 'undefined' && !process.env.NEXT_RUNTIME) {
+  try {
+    const cwd = process.cwd();
+    for (const filename of ['.env.local', '.env']) {
+      const fullPath = path.resolve(cwd, filename);
+      if (fs.existsSync(fullPath)) {
+        const content = fs.readFileSync(fullPath, 'utf-8');
+        for (const line of content.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          const eqIdx = trimmed.indexOf('=');
+          if (eqIdx === -1) continue;
+          const key = trimmed.slice(0, eqIdx).trim();
+          const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
+          if (!process.env[key]) {
+            process.env[key] = val;
+          }
+        }
+      }
+    }
+  } catch {}
+}
+
 // Support both local SQLite file and Turso Cloud URL
 const dbUrl = process.env.TURSO_DATABASE_URL || `file:${path.join(DB_DIR, 'veco.db')}`;
 const authToken = process.env.TURSO_AUTH_TOKEN;
