@@ -531,6 +531,44 @@ const DetailModalContent: React.FC<DetailModalContentProps> = ({
                     </div>
                   </div>
                 )}
+
+                {/* Sibling Barangays Reference Note */}
+                {item.otherAffectedBarangays && item.otherAffectedBarangays.length > 0 && (
+                  <div className="text-[11.5px] text-[var(--label-secondary-alpha)] pt-2 border-t border-[var(--hairline-inset)]">
+                    <span className="font-semibold text-[var(--label-primary)]">Also affected in this advisory: </span>
+                    <span>{item.otherAffectedBarangays.join(', ')}</span>
+                  </div>
+                )}
+
+                {/* Operational Update History Stepper if Available */}
+                {item.updateHistory && item.updateHistory.length > 0 && (
+                  <div className="pt-2 border-t border-[var(--hairline-inset)] space-y-2">
+                    <span className="text-[11px] font-bold text-[var(--label-secondary-alpha)] uppercase tracking-wider block">
+                      Advisory Update History
+                    </span>
+                    <div className="space-y-1.5">
+                      {item.updateHistory.map((upd, idx) => (
+                        <div key={idx} className="p-2.5 rounded-xl bg-[var(--tertiary-fill)] border border-[var(--hairline)] flex items-start justify-between gap-2 text-xs">
+                          <div>
+                            <span className="font-semibold text-[var(--label-primary)] block">
+                              {upd.statusLabel}
+                            </span>
+                            {upd.note && (
+                              <p className="text-[11px] text-[var(--label-secondary-alpha)] line-clamp-2">
+                                {upd.note}
+                              </p>
+                            )}
+                          </div>
+                          {upd.timestamp && (
+                            <span className="text-[10.5px] font-mono-tabular text-[var(--label-tertiary)] shrink-0">
+                              {upd.timestamp}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {item.fbPostUrl && (

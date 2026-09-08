@@ -44,7 +44,8 @@ export async function reconcileAllInterruptions(targetDate?: string): Promise<Re
   // 1. Fetch all active interruptions in ONE single query
   const allRes = await db.execute({
     sql: `
-      SELECT id, date, time_start, area_title, city, precedence, type, status, reason, fb_caption, barangays_json 
+      SELECT id, date, time_start, area_title, barangay_name, city, precedence, type, status, status_label, reason, fb_caption, barangays_json,
+             origin_post_id, origin_post_url, latest_post_id, latest_post_url, update_history_json, fb_post_time
       FROM interruptions 
       WHERE is_superseded = 0 ${targetDate ? 'AND date = ?' : ''}
       ORDER BY date ASC, id ASC
@@ -58,8 +59,18 @@ export async function reconcileAllInterruptions(targetDate?: string): Promise<Re
     timeStart: string;
     city: string;
     areaTitle: string;
+    barangayName: string;
     precedence: number;
     barangays: string[];
+    status: string;
+    statusLabel: string;
+    fbTime: string;
+    fbCaption: string;
+    originPostId?: string;
+    originPostUrl?: string;
+    latestPostId?: string;
+    latestPostUrl?: string;
+    updateHistory: any[];
     isSuperseded: boolean;
     supersededById?: number;
     dirty: boolean;
@@ -68,15 +79,29 @@ export async function reconcileAllInterruptions(targetDate?: string): Promise<Re
   const allRecords: MutableRecord[] = (allRes.rows as any[]).map(r => {
     let b: string[] = [];
     try { b = JSON.parse(r.barangays_json || '[]'); } catch {}
+    let hist: any[] = [];
+    try { hist = JSON.parse(r.update_history_json || '[]'); } catch {}
+
     const calculatedPrec = computePrecedenceScore(r);
+    const brgyName = String(r.barangay_name || (b[0]) || r.area_title);
     return {
       id: Number(r.id),
       date: String(r.date),
       timeStart: String(r.time_start),
       city: String(r.city),
-      areaTitle: String(r.area_title),
+      areaTitle: brgyName,
+      barangayName: brgyName,
       precedence: calculatedPrec,
       barangays: b,
+      status: String(r.status || 'upcoming'),
+      statusLabel: String(r.status_label || 'Scheduled'),
+      fbTime: String(r.fb_post_time || ''),
+      fbCaption: String(r.fb_caption || ''),
+      originPostId: r.origin_post_id ? String(r.origin_post_id) : undefined,
+      originPostUrl: r.origin_post_url ? String(r.origin_post_url) : undefined,
+      latestPostId: r.latest_post_id ? String(r.latest_post_id) : undefined,
+      latestPostUrl: r.latest_post_url ? String(r.latest_post_url) : undefined,
+      updateHistory: hist,
       isSuperseded: false,
       dirty: false,
     };
@@ -167,8 +192,16 @@ export async function reconcileAllInterruptions(targetDate?: string): Promise<Re
       });
     } else {
       batchStatements.push({
-        sql: 'UPDATE interruptions SET barangays_json = ?, area_title = ?, precedence = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        args: [JSON.stringify(rec.barangays), rec.areaTitle, rec.precedence, rec.id]
+        sql: 'UPDATE interruptions SET barangays_json = ?, area_title = ?, precedence = ?, latest_post_id = ?, latest_post_url = ?, update_history_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        args: [
+          JSON.stringify(rec.barangays),
+          rec.areaTitle,
+          rec.precedence,
+          rec.latestPostId || null,
+          rec.latestPostUrl || null,
+          JSON.stringify(rec.updateHistory || []),
+          rec.id
+        ]
       });
     }
   }

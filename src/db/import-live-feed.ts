@@ -1,6 +1,7 @@
 import { db, initDbSchema, computePrecedenceScore, logScrapeRun, REAL_FB_POSTS } from './index';
 import { Interruption, InterruptionStatus, InterruptionType } from '@/types';
-import { computeLiveStatus } from '../lib/status-utils';
+import { computeLiveStatus, computeDateLabel, formatDateYMD } from '../lib/status-utils';
+import { getCanonicalCityForBarangay } from '../lib/geo-data';
 import { reconcileAllInterruptions } from '../parser/superseder';
 
 function formatTime12(time24: string): string {
@@ -64,25 +65,9 @@ export async function importLiveFeed(): Promise<number> {
   for (const item of data) {
     const timeDisplay = `${formatTime12(item.start)} – ${formatTime12(item.end)}`;
     
-    // Dynamic Date Calculation relative to current Asia/Manila time
-    const todayManila = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
-    const tomorrowDate = new Date();
-    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-    const tomorrowManila = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(tomorrowDate);
-
-    // Use the advisory date directly from feed (or default to current Manila date if missing)
+    const todayManila = formatDateYMD();
     const dateStr = item.date || todayManila;
-
-    let dateLabel = dateStr;
-    try {
-      const d = new Date(dateStr + 'T00:00:00');
-      const formatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      if (dateStr === todayManila) dateLabel = `Today (${formatted})`;
-      else if (dateStr === tomorrowManila) dateLabel = `Tomorrow (${formatted})`;
-      else dateLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    } catch {
-      dateLabel = dateStr;
-    }
+    const dateLabel = computeDateLabel(dateStr);
 
     // City determination
     let city = 'Cebu City';
@@ -121,87 +106,122 @@ export async function importLiveFeed(): Promise<number> {
     }
 
     const fbInfo = getLiveFeedFbPost(item);
+    const targetAreas = areas.length > 0 ? areas : [areaTitle];
 
-    const interruption: Omit<Interruption, 'id'> = {
-      fbPostId: fbInfo.postId,
-      fbPostUrl: fbInfo.postUrl,
-      fbImageUrl: REAL_FB_POSTS.DEFAULT_IMAGE,
-      date: dateStr,
-      dateLabel,
-      timeStart: item.start || '08:00',
-      timeEnd: item.end || '17:00',
-      time: timeDisplay,
-      type,
-      status,
-      statusLabel,
-      area: areaTitle,
-      city,
-      barangays: areas,
-      streets,
-      reason: item.reason || (type === 'rotational' ? 'Rotational brownout schedule per grid demand.' : 'Scheduled system improvement work.'),
-      fbCaption: `ADVISORY: ${item.title || 'Power Interruption'}\n\n${item.reason || ''}\n\nAffected Areas: ${areas.join(', ')}`,
-      fbTime: dateStr,
-      isPast,
-      outcome: status === 'restored' ? 'restored' : (status === 'cancelled' ? 'cancelled' : undefined)
-    };
+    for (const brgy of targetAreas) {
+      const otherBarangays = targetAreas.filter(b => b !== brgy);
+      const uniqueFbPostId = targetAreas.length > 1 ? `${fbInfo.postId}#${brgy}` : fbInfo.postId;
 
-    const precedence = computePrecedenceScore(interruption);
+      // Determine the specific canonical city for this barangay
+      const matchingGroup = item.groups?.find((g: any) => (g.areas || []).some((a: string) => a.toLowerCase().trim() === brgy.toLowerCase().trim()));
+      const groupCity = matchingGroup?.label ? matchingGroup.label.split('·')[0].trim() : undefined;
+      const brgyCity = getCanonicalCityForBarangay(brgy, groupCity || city);
 
-    statements.push({
-      sql: `
-        INSERT INTO interruptions (
-          fb_post_id, fb_post_url, fb_image_url, date, date_label, time_start, time_end, time_display,
-          type, status, status_label, area_title, city, barangays_json, streets,
-          reason, fb_caption, fb_post_time, is_past, outcome, is_superseded, superseded_by_id, precedence
-        ) VALUES (
-          ?, ?, ?, ?, ?, ?, ?, ?,
-          ?, ?, ?, ?, ?, ?, ?,
-          ?, ?, ?, ?, ?, ?, ?, ?
-        )
-        ON CONFLICT(fb_post_id, date, time_start) DO UPDATE SET
-          fb_post_url = COALESCE(excluded.fb_post_url, interruptions.fb_post_url),
-          status = excluded.status,
-          status_label = excluded.status_label,
-          outcome = excluded.outcome,
-          reason = excluded.reason,
-          area_title = excluded.area_title,
-          city = excluded.city,
-          barangays_json = excluded.barangays_json,
-          streets = excluded.streets,
-          fb_caption = excluded.fb_caption,
-          fb_image_url = excluded.fb_image_url,
-          is_past = excluded.is_past,
-          is_superseded = excluded.is_superseded,
-          superseded_by_id = excluded.superseded_by_id,
-          precedence = excluded.precedence,
-          updated_at = CURRENT_TIMESTAMP
-      `,
-      args: [
-        interruption.fbPostId,
-        interruption.fbPostUrl || null,
-        interruption.fbImageUrl || null,
-        interruption.date,
-        interruption.dateLabel,
-        interruption.timeStart,
-        interruption.timeEnd,
-        interruption.time,
-        interruption.type,
-        interruption.status,
-        interruption.statusLabel,
-        interruption.area,
-        interruption.city,
-        JSON.stringify(interruption.barangays),
-        interruption.streets || null,
-        interruption.reason || null,
-        interruption.fbCaption || null,
-        interruption.fbTime || null,
-        interruption.isPast ? 1 : 0,
-        interruption.outcome || null,
-        interruption.isSuperseded ? 1 : 0,
-        interruption.supersededById || null,
-        precedence,
-      ]
-    });
+      const interruption: Omit<Interruption, 'id'> = {
+        fbPostId: uniqueFbPostId,
+        fbPostUrl: fbInfo.postUrl,
+        fbImageUrl: REAL_FB_POSTS.DEFAULT_IMAGE,
+        date: dateStr,
+        dateLabel,
+        timeStart: item.start || '08:00',
+        timeEnd: item.end || '17:00',
+        time: timeDisplay,
+        type,
+        status,
+        statusLabel,
+        area: brgy,
+        barangay: brgy,
+        city: brgyCity,
+        barangays: [brgy],
+        streets,
+        reason: item.reason || (type === 'rotational' ? 'Rotational brownout schedule per grid demand.' : 'Scheduled system improvement work.'),
+        fbCaption: `ADVISORY: ${item.title || 'Power Interruption'}\n\n${item.reason || ''}\n\nAffected Area: ${brgy}`,
+        fbTime: dateStr,
+        isPast,
+        outcome: status === 'restored' ? 'restored' : (status === 'cancelled' ? 'cancelled' : undefined),
+        originPostId: fbInfo.postId,
+        originPostUrl: fbInfo.postUrl,
+        latestPostId: fbInfo.postId,
+        latestPostUrl: fbInfo.postUrl,
+        otherAffectedBarangays: otherBarangays,
+      };
+
+      const precedence = computePrecedenceScore(interruption);
+
+      statements.push({
+        sql: `
+          INSERT INTO interruptions (
+            fb_post_id, fb_post_url, fb_image_url, date, date_label, time_start, time_end, time_display,
+            type, status, status_label, area_title, city, barangays_json, streets,
+            reason, fb_caption, fb_post_time, is_past, outcome, is_superseded, superseded_by_id, precedence,
+            barangay_name, origin_post_id, origin_post_url, latest_post_id, latest_post_url,
+            update_history_json, other_barangays_json
+          ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            ?, ?
+          )
+          ON CONFLICT(fb_post_id, date, time_start) DO UPDATE SET
+            fb_post_url = COALESCE(excluded.fb_post_url, interruptions.fb_post_url),
+            status = excluded.status,
+            status_label = excluded.status_label,
+            outcome = excluded.outcome,
+            reason = excluded.reason,
+            area_title = excluded.area_title,
+            barangay_name = excluded.barangay_name,
+            city = excluded.city,
+            barangays_json = excluded.barangays_json,
+            streets = excluded.streets,
+            fb_caption = excluded.fb_caption,
+            fb_image_url = excluded.fb_image_url,
+            is_past = excluded.is_past,
+            is_superseded = excluded.is_superseded,
+            superseded_by_id = excluded.superseded_by_id,
+            precedence = excluded.precedence,
+            origin_post_id = COALESCE(interruptions.origin_post_id, excluded.origin_post_id),
+            origin_post_url = COALESCE(interruptions.origin_post_url, excluded.origin_post_url),
+            latest_post_id = excluded.latest_post_id,
+            latest_post_url = excluded.latest_post_url,
+            update_history_json = excluded.update_history_json,
+            other_barangays_json = excluded.other_barangays_json,
+            updated_at = CURRENT_TIMESTAMP
+        `,
+        args: [
+          interruption.fbPostId,
+          interruption.fbPostUrl || null,
+          interruption.fbImageUrl || null,
+          interruption.date,
+          interruption.dateLabel,
+          interruption.timeStart,
+          interruption.timeEnd,
+          interruption.time,
+          interruption.type,
+          interruption.status,
+          interruption.statusLabel,
+          interruption.area,
+          interruption.city,
+          JSON.stringify(interruption.barangays),
+          interruption.streets || null,
+          interruption.reason || null,
+          interruption.fbCaption || null,
+          interruption.fbTime || null,
+          interruption.isPast ? 1 : 0,
+          interruption.outcome || null,
+          interruption.isSuperseded ? 1 : 0,
+          interruption.supersededById || null,
+          precedence,
+          brgy,
+          fbInfo.postId,
+          fbInfo.postUrl || null,
+          fbInfo.postId,
+          fbInfo.postUrl || null,
+          JSON.stringify([]),
+          JSON.stringify(otherBarangays),
+        ]
+      });
+    }
   }
 
   console.log(`Executing batch writes for ${statements.length} items...`);

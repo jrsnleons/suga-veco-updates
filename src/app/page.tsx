@@ -7,7 +7,6 @@ import { enrichWithLiveStatus } from '@/lib/status-utils';
 import { loadCachedOutages, saveCachedOutages, formatCachedTime } from '@/lib/offline-storage';
 import { Header } from '@/components/Header';
 import { GridPulseView } from '@/components/GridPulseView';
-import { RadarMap } from '@/components/RadarMap';
 import { StatusFeed } from '@/components/StatusFeed';
 import { CalendarView } from '@/components/CalendarView';
 import { DetailModal } from '@/components/DetailModal';
@@ -19,41 +18,38 @@ import { SystemErrorToast } from '@/components/SystemErrorToast';
 import { evaluateOutageNotifications, getNotificationPermission } from '@/lib/notification-manager';
 
 export default function Home() {
-  // Initial state hydrated instantly from offline cache if available
-  const [outages, setOutages] = useState<Interruption[]>(() => {
-    if (typeof window === 'undefined') return [];
-    const cached = loadCachedOutages();
-    return cached?.data ? cached.data.map(o => enrichWithLiveStatus(o)) : [];
-  });
-
+  const [outages, setOutages] = useState<Interruption[]>([]);
   const [currentTab, setCurrentTab] = useState<ActiveTab>('pulse');
-  const [favorites, setFavorites] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const stored = localStorage.getItem('veco_favorites');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return [];
-  });
-
+  const [favorites, setFavorites] = useState<string[]>([]);
   const [selectedItem, setSelectedItem] = useState<Interruption | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPinDialogOpen, setIsPinDialogOpen] = useState(false);
   const [isNotificationDialogOpen, setIsNotificationDialogOpen] = useState(false);
   const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
-  const [lastSyncedText, setLastSyncedText] = useState(() => {
-    if (typeof window === 'undefined') return 'Checking...';
-    const cached = loadCachedOutages();
-    return cached?.cachedAt ? formatCachedTime(cached.cachedAt) : 'Checking...';
-  });
+  const [lastSyncedText, setLastSyncedText] = useState('Checking...');
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Sync notification permission status on mount
+  // Hydrate favorites, cache, and notification permissions cleanly on mount
   useEffect(() => {
     setHasNotificationPermission(getNotificationPermission() === 'granted');
+
+    try {
+      const stored = localStorage.getItem('veco_favorites');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setFavorites(parsed);
+        }
+      }
+    } catch {}
+
+    const cached = loadCachedOutages();
+    if (cached?.data && cached.data.length > 0) {
+      setOutages(cached.data.map(o => enrichWithLiveStatus(o)));
+      if (cached.cachedAt) {
+        setLastSyncedText(formatCachedTime(cached.cachedAt));
+      }
+    }
   }, []);
 
   // Run notification evaluation engine whenever outages or favorites change
@@ -253,21 +249,6 @@ export default function Home() {
                 onOpenDetail={handleOpenDetail}
                 onToggleFavorite={handleToggleFavorite}
                 onOpenPinDialog={() => setIsPinDialogOpen(true)}
-              />
-            </motion.div>
-          )}
-
-          {currentTab === 'radar' && (
-            <motion.div 
-              key="radar"
-              initial={{ opacity: 0, y: 8, filter: 'blur(4px)' }}
-              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
-              transition={{ type: 'spring', stiffness: 450, damping: 32 }}
-            >
-              <RadarMap 
-                outages={outages}
-                onOpenDetail={handleOpenDetail}
               />
             </motion.div>
           )}

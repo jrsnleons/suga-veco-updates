@@ -218,3 +218,88 @@ export function resolveCoordinates(area: string, city: string): GeoPoint {
 
   return METRO_CEBU_CENTER;
 }
+
+export const CEBU_BARANGAY_CITIES: Record<string, string[]> = {
+  "Consolacion": [
+    "Cabangahan", "Cansaga", "Casili", "Danglag", "Garing", "Jugan", 
+    "Lamac", "Nangka", "Panas", "Panoypoy", "Pitogo", "Poblacion Occidental", 
+    "Poblacion Oriental", "Polog", "Pugalo", "Pulpogan", "Sacsac", "Tayud", 
+    "Tilhaong", "Tolotolo", "Tugbongan"
+  ],
+  "Liloan": [
+    "Cabadiangan", "Calero", "Catarman", "Cotcot", "Jubay", "Lataban", 
+    "Mulao", "Poblacion", "San Roque", "San Vicente", "Santa Cruz", 
+    "Tabla", "Tayud", "Yati"
+  ],
+  "Cebu City": [
+    "Adlaon", "Agsungot", "Apas", "Babag", "Bacayan", "Banilad", 
+    "Basak Pardo", "Basak San Nicolas", "Binaliw", "Bonbon", "Budlaan", 
+    "Buhisan", "Bulacao", "Buot-Taup", "Busay", "Calamba", "Cambinocot", 
+    "Camputhaw", "Capitol Site", "Carreta", "Cogon Pardo", "Cogon Ramos", 
+    "Day-as", "Duljo Fatima", "Ermita", "Guadalupe", "Guba", "Hipodromo", 
+    "Inayawan", "Kalubihan", "Kalunasan", "Kamagayan", "Kasambagan", 
+    "Kinasang-an", "Labangon", "Lahug", "Lorega San Miguel", "Lusaran", 
+    "Luz", "Mabini", "Mabolo", "Malubog", "Mambaling", "Pahina Central", 
+    "Pahina San Nicolas", "Pamutan", "Pardo", "Pari-an", "Paril", "Pasil", 
+    "Pit-os", "Poblacion", "Pulangbato", "Pung-ol Sibugay", "Punta Princesa", 
+    "Quiot", "Sambag 1", "Sambag 2", "San Antonio", "San Jose", 
+    "San Nicolas Proper", "San Roque", "Santa Cruz", "Sapangdaku", 
+    "Sawang Calero", "Sinsin", "Sirao", "Suba", "Sudlon 1", "Sudlon 2", 
+    "T. Padilla", "Tabunan", "Tagbao", "Talamban", "Taptap", "Tejero", 
+    "Tinago", "Tisa", "Toong", "Zapatera"
+  ],
+  "Mandaue City": [
+    "Alang-alang", "Bakilid", "Banilad", "Basak", "Cabancalan", "Cambaro", 
+    "Canduman", "Casili", "Casuntingan", "Centro", "Cubacub", "Guizo", 
+    "Ibabao-Estancia", "Jagobiao", "Labogon", "Looc", "Maguikay", 
+    "Mantuyong", "Opao", "Pagsabungan", "Paknaan", "Subangdaku", "Tabok", 
+    "Tawason", "Tingub", "Tipolo", "Umapad"
+  ],
+  "Talisay City": [
+    "Biasong", "Bulacao", "Cadulawan", "Camp IV", "Cansojong", "Dumlog", 
+    "Jaclupan", "Lagtang", "Lawaan I", "Lawaan II", "Lawaan", "Linao", "Maghaway", 
+    "Manipis", "Mohon", "Poblacion", "Pooc", "San Isidro", "San Roque", 
+    "Tabunok", "Tangke", "Tapul"
+  ],
+  "Minglanilla": [
+    "Calajo-an", "Camp 7", "Camp 8", "Cuanos", "Guindarohan", 
+    "Linao-Lipata", "Lipata", "Manduang", "Pakigne", "Poblacion Ward 1", 
+    "Poblacion Ward 2", "Tubod", "Tulay", "Tunghaan", "Tungkil", "Tungkop", "Vito"
+  ],
+  "City of Naga": [
+    "Alfaco", "Bairan", "Balirong", "Cabungbungan", "Cantao-an", "Central Poblacion", 
+    "Cogon", "Colon", "East Poblacion", "Inayagan", "Inoburan", "Jaguimit", 
+    "Lanas", "Langtad", "Lutac", "Mainit", "Mayana", "Naalad", 
+    "North Poblacion", "Pangdan", "Patag", "South Poblacion", "Tagjaguimit", 
+    "Tangke", "Tinaan", "Tuyan", "Uling", "West Poblacion"
+  ],
+  "San Fernando": [
+    "Balungag", "Bato", "Bolo", "Buagsong", "Cabrera", "Can-asujan", 
+    "Ilaya", "Lantawan", "Liburon", "Magsico", "Panadtaran", "Pitalo", 
+    "San Isidro", "Sangat", "South Poblacion", "Tabionan", "Taoc", 
+    "Tonggo", "Tubod"
+  ]
+};
+
+export function getCanonicalCityForBarangay(barangay: string, fallbackCity = 'Cebu City'): string {
+  if (!barangay) return fallbackCity;
+  const norm = barangay.toLowerCase().trim();
+
+  // Direct check in CEBU_MUNICIPALITIES
+  if (CEBU_MUNICIPALITIES[barangay]) return barangay;
+
+  for (const [city, brgys] of Object.entries(CEBU_BARANGAY_CITIES)) {
+    if (brgys.some(b => b.toLowerCase().trim() === norm)) {
+      return city;
+    }
+  }
+
+  // Substring check
+  for (const [city, brgys] of Object.entries(CEBU_BARANGAY_CITIES)) {
+    if (brgys.some(b => norm.includes(b.toLowerCase().trim()))) {
+      return city;
+    }
+  }
+
+  return fallbackCity;
+}

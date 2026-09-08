@@ -4,7 +4,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Zap, Radio, Bookmark, Calendar } from 'lucide-react';
 
-export type ActiveTab = 'pulse' | 'radar' | 'watchlist' | 'timeline';
+export type ActiveTab = 'pulse' | 'watchlist' | 'timeline';
 
 interface BottomNavProps {
   currentTab: ActiveTab;
@@ -14,7 +14,6 @@ interface BottomNavProps {
 export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onChangeTab }) => {
   const tabs = [
     { id: 'pulse' as const, label: 'Pulse', icon: Zap },
-    { id: 'radar' as const, label: 'Radar', icon: Radio },
     { id: 'watchlist' as const, label: 'Watchlist', icon: Bookmark },
     { id: 'timeline' as const, label: 'Timeline', icon: Calendar },
   ];

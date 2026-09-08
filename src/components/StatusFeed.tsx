@@ -4,10 +4,13 @@ import React from 'react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { 
   Plus, Clock, ChevronRight, Radio, 
-  MapPin, CheckCircle2
+  MapPin, CheckCircle2, AlertTriangle, Calendar
 } from 'lucide-react';
 import { Interruption } from '@/types';
 import { OutageCountdownBar } from '@/components/OutageCountdownBar';
+import { formatDateYMD } from '@/lib/status-utils';
+import { getCanonicalCityForBarangay } from '@/lib/geo-data';
+import { isOutageAffectingFavorites } from '@/lib/notification-manager';
 
 interface StatusFeedProps {
   outages: Interruption[];
@@ -44,15 +47,52 @@ export const StatusFeed: React.FC<StatusFeedProps> = ({
   onOpenPinDialog,
 }) => {
   const activeOutages = outages.filter(o => !o.isPast);
+  const now = new Date();
+  const todayStr = formatDateYMD(now);
+
+  const tomorrowDate = new Date(now);
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowStr = formatDateYMD(tomorrowDate);
 
   // Find advisory for a specific favorite barangay
-  const getFavoriteAdvisory = (fav: string) => {
-    const term = fav.toLowerCase().trim();
-    return activeOutages.find(o => 
-      o.area.toLowerCase().includes(term) ||
-      o.city.toLowerCase().includes(term) ||
-      o.barangays.some(b => b.toLowerCase().includes(term))
-    );
+  const getFavoriteAdvisories = (fav: string) => {
+    const matching = activeOutages.filter(o => isOutageAffectingFavorites(o, [fav]));
+
+    const todayOngoing = matching.find(o => o.date === todayStr && o.status === 'ongoing');
+    const todayUpcoming = matching.find(o => o.date === todayStr && (o.status === 'upcoming' || o.status === 'delayed'));
+    const todayAdvisory = todayOngoing || todayUpcoming || matching.find(o => o.date === todayStr);
+    const tomorrowAdvisory = matching.find(o => o.date === tomorrowStr);
+    const futureAdvisory = matching.find(o => o.date > tomorrowStr);
+
+    const canonicalCity = getCanonicalCityForBarangay(fav);
+    const primaryAdvisory: Interruption = todayAdvisory || tomorrowAdvisory || futureAdvisory || {
+      id: -1,
+      fbPostId: `nominal-${fav}`,
+      date: todayStr,
+      dateLabel: 'Today',
+      timeStart: '00:00',
+      timeEnd: '23:59',
+      time: '24 Hours',
+      type: 'scheduled',
+      status: 'restored',
+      statusLabel: '230V Nominal • All Clear',
+      area: fav,
+      barangay: fav,
+      city: canonicalCity,
+      barangays: [fav],
+      streets: 'All feeders and distribution lines energizing this area are operating normally.',
+      reason: 'Grid stability is nominal with no ongoing or scheduled power interruptions recorded for this area.',
+      fbCaption: `Status for ${fav}, ${canonicalCity}: All Visayan Electric power lines are energized with 230V nominal supply.`,
+      fbTime: todayStr,
+      isPast: false,
+    };
+
+    return {
+      activeToday: todayAdvisory || null,
+      tomorrow: tomorrowAdvisory || null,
+      future: futureAdvisory || null,
+      primaryAdvisory,
+    };
   };
 
   return (
@@ -60,22 +100,20 @@ export const StatusFeed: React.FC<StatusFeedProps> = ({
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="space-y-7"
+      className="space-y-6"
     >
-      {/* ------------------------------------------------------------------ */}
-      {/* Editorial Header                                                   */}
-      {/* ------------------------------------------------------------------ */}
+      {/* Editorial Header */}
       <motion.section variants={itemVariants} className="pt-2 flex items-start justify-between gap-4">
         <div className="space-y-1">
           <h1 className="ios-large-title text-[28px] sm:text-[34px] tracking-tight">
             Watchlist
           </h1>
           <p className="ios-subheadline text-xs sm:text-[14px]">
-            Monitored locations and status cards.
+            Real-time power status for your pinned locations
           </p>
         </div>
 
-        {/* Tactile Add Button */}
+        {/* Add Location Button */}
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.92 }}
@@ -88,9 +126,7 @@ export const StatusFeed: React.FC<StatusFeedProps> = ({
         </motion.button>
       </motion.section>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Pillar 3 & 4: Monitored Places Cards (Apple Weather Style)         */}
-      {/* ------------------------------------------------------------------ */}
+      {/* Monitored Places Cards */}
       <motion.section variants={itemVariants} className="space-y-3">
         {favorites.length === 0 ? (
           <div className="ios-grouped-card p-8 text-center space-y-3 border border-[var(--hairline)]">
@@ -102,7 +138,7 @@ export const StatusFeed: React.FC<StatusFeedProps> = ({
                 Track your neighborhood
               </h3>
               <p className="text-xs text-[var(--label-secondary-alpha)] leading-relaxed">
-                Add your home, workplace, or family&apos;s barangay to receive immediate power outage verdicts.
+                Add your home or workplace barangay to monitor live power stability and schedules.
               </p>
             </div>
             <motion.button
@@ -111,33 +147,40 @@ export const StatusFeed: React.FC<StatusFeedProps> = ({
               className="px-4 py-2 rounded-xl bg-[var(--accent-blue)] text-white text-xs font-semibold shadow-sm hover:opacity-90 transition-opacity cursor-pointer inline-flex items-center gap-1.5"
             >
               <Plus className="w-4 h-4" />
-              <span>Add Your First Location</span>
+              <span>Add Location</span>
             </motion.button>
           </div>
         ) : (
           <div className="space-y-3">
             <AnimatePresence mode="popLayout">
               {favorites.map(fav => {
-                const advisory = getFavoriteAdvisory(fav);
-                const hasOngoing = advisory?.status === 'ongoing';
-                const hasDelayed = advisory?.status === 'delayed';
-                const hasUpcoming = advisory?.status === 'upcoming';
+                const { activeToday, tomorrow, future, primaryAdvisory } = getFavoriteAdvisories(fav);
+                
+                const hasOngoingToday = activeToday?.status === 'ongoing';
+                const hasDelayedToday = activeToday?.status === 'delayed';
+                const hasUpcomingToday = activeToday?.status === 'upcoming';
+                const hasTomorrow = Boolean(tomorrow);
 
-                // Strict 3-color status mapping (Apple HIG)
+                // Precise status mapping:
+                // If today has an active interruption -> Red (Active Outage)
+                // If today has a delayed start -> Amber (Delayed Start)
+                // If today has scheduled outage later -> Blue (Scheduled Today)
+                // If today is clear but tomorrow has maintenance -> Green (230V Nominal / Online) + subtext for tomorrow
+                // If all clear -> Green (230V Nominal)
                 let statusLabel = '230V Nominal';
                 let statusBadgeClass = 'bg-[var(--accent-green)]/12 text-[var(--accent-green)] border-[var(--accent-green)]/25';
                 let dotClass = 'bg-[var(--accent-green)] animate-pulse-green';
 
-                if (hasOngoing) {
+                if (hasOngoingToday) {
                   statusLabel = 'Active Outage';
                   statusBadgeClass = 'bg-[var(--accent-red)]/15 text-[var(--accent-red)] border-[var(--accent-red)]/30';
                   dotClass = 'bg-[var(--accent-red)] animate-pulse-red';
-                } else if (hasDelayed) {
+                } else if (hasDelayedToday) {
                   statusLabel = 'Delayed Start';
                   statusBadgeClass = 'bg-[var(--accent-orange)]/15 text-[var(--accent-orange)] border-[var(--accent-orange)]/30';
                   dotClass = 'bg-[var(--accent-orange)] animate-pulse-amber';
-                } else if (hasUpcoming) {
-                  statusLabel = 'Scheduled';
+                } else if (hasUpcomingToday) {
+                  statusLabel = 'Scheduled Today';
                   statusBadgeClass = 'bg-[var(--accent-blue)]/12 text-[var(--accent-blue)] border-[var(--accent-blue)]/25';
                   dotClass = 'bg-[var(--accent-blue)]';
                 }
@@ -154,8 +197,8 @@ export const StatusFeed: React.FC<StatusFeedProps> = ({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        if (advisory) {
-                          onOpenDetail(advisory);
+                        if (primaryAdvisory) {
+                          onOpenDetail(primaryAdvisory);
                         } else {
                           onOpenPinDialog();
                         }
@@ -167,8 +210,8 @@ export const StatusFeed: React.FC<StatusFeedProps> = ({
                     whileHover={{ y: -1 }}
                     whileTap={{ scale: 0.985 }}
                     onClick={() => {
-                      if (advisory) {
-                        onOpenDetail(advisory);
+                      if (primaryAdvisory) {
+                        onOpenDetail(primaryAdvisory);
                       } else {
                         onOpenPinDialog();
                       }
@@ -186,7 +229,7 @@ export const StatusFeed: React.FC<StatusFeedProps> = ({
                             {fav}
                           </h2>
                           <span className="text-xs text-[var(--label-secondary-alpha)] font-mono-tabular">
-                            {advisory?.city || 'Metro Cebu'} • Feeder Network
+                            {getCanonicalCityForBarangay(fav, primaryAdvisory?.city || 'Metro Cebu')}
                           </span>
                         </div>
                       </div>
@@ -197,14 +240,14 @@ export const StatusFeed: React.FC<StatusFeedProps> = ({
                       </span>
                     </div>
 
-                    {/* Compact Countdown Bar if Outage Ongoing */}
-                    {hasOngoing && advisory && (
+                    {/* Compact Countdown Bar if Outage Ongoing Today */}
+                    {hasOngoingToday && activeToday && (
                       <div className="pt-1">
                         <OutageCountdownBar
-                          timeStart={advisory.timeStart}
-                          timeEnd={advisory.timeEnd}
-                          time={advisory.time}
-                          status={advisory.status}
+                          timeStart={activeToday.timeStart}
+                          timeEnd={activeToday.timeEnd}
+                          time={activeToday.time}
+                          status={activeToday.status}
                           compact={true}
                         />
                       </div>
@@ -213,20 +256,35 @@ export const StatusFeed: React.FC<StatusFeedProps> = ({
                     {/* Bottom Row: Next scheduled maintenance or all clear */}
                     <div className="pt-2.5 border-t border-[var(--hairline-inset)] flex items-center justify-between text-xs text-[var(--label-secondary-alpha)]">
                       <div className="flex items-center gap-1.5 font-mono-tabular truncate pr-2">
-                        {hasOngoing ? (
+                        {hasOngoingToday ? (
                           <span className="text-[var(--accent-red)] font-semibold flex items-center gap-1">
                             <Radio className="w-3.5 h-3.5 fill-current" />
-                            <span>Interruption in progress: {advisory?.time}</span>
+                            <span>Outage active: {activeToday?.time}</span>
                           </span>
-                        ) : hasUpcoming ? (
+                        ) : hasDelayedToday ? (
+                          <span className="text-[var(--accent-orange)] font-semibold flex items-center gap-1">
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            <span>Delayed start: {activeToday?.time}</span>
+                          </span>
+                        ) : hasUpcomingToday ? (
                           <span className="flex items-center gap-1.5 text-[var(--label-primary)]">
                             <Clock className="w-3.5 h-3.5 text-[var(--accent-blue)]" />
-                            <span>{advisory?.dateLabel} • {advisory?.time}</span>
+                            <span>Scheduled today: {activeToday?.time}</span>
+                          </span>
+                        ) : hasTomorrow ? (
+                          <span className="flex items-center gap-1.5 text-[var(--label-primary)]">
+                            <Calendar className="w-3.5 h-3.5 text-[var(--accent-blue)]" />
+                            <span>Tomorrow: {tomorrow?.time}</span>
+                          </span>
+                        ) : future ? (
+                          <span className="flex items-center gap-1.5 text-[var(--label-secondary-alpha)]">
+                            <Calendar className="w-3.5 h-3.5 text-[var(--label-tertiary)]" />
+                            <span>{future.dateLabel}: {future.time}</span>
                           </span>
                         ) : (
                           <span className="text-[var(--accent-green)] font-medium flex items-center gap-1">
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>All electrical lines operating normally</span>
+                            <span>Normal power supply</span>
                           </span>
                         )}
                       </div>
@@ -241,14 +299,14 @@ export const StatusFeed: React.FC<StatusFeedProps> = ({
               })}
             </AnimatePresence>
 
-            {/* Quick Add Another Barangay Button */}
+            {/* Quick Add Another Location */}
             <motion.button
               whileTap={{ scale: 0.985 }}
               onClick={onOpenPinDialog}
               className="w-full py-3 px-4 rounded-2xl border border-dashed border-[var(--hairline)] hover:border-[var(--accent-blue)]/50 text-xs font-semibold text-[var(--label-secondary-alpha)] hover:text-[var(--accent-blue)] transition-colors flex items-center justify-center gap-2 cursor-pointer bg-[var(--secondary-bg)]/50"
             >
               <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>Track another barangay</span>
+              <span>Track another location</span>
             </motion.button>
           </div>
         )}
@@ -256,3 +314,4 @@ export const StatusFeed: React.FC<StatusFeedProps> = ({
     </motion.div>
   );
 };
+

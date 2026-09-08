@@ -1,5 +1,6 @@
 import { Interruption } from '@/types';
 import { parseTimeToMinutes, formatDateYMD } from '@/lib/status-utils';
+import { CEBU_MUNICIPALITIES } from '@/lib/geo-data';
 
 export interface NotificationPreferences {
   enabled: boolean;
@@ -149,27 +150,27 @@ export function clearNotifiedHistory(): void {
  */
 export function isOutageAffectingFavorites(item: Interruption, favorites: string[]): boolean {
   if (!favorites || favorites.length === 0) return false;
+  const knownCities = Object.keys(CEBU_MUNICIPALITIES).map(c => c.toLowerCase().trim());
   
   return favorites.some(fav => {
     const fLower = fav.trim().toLowerCase();
     if (!fLower) return false;
 
-    // Check if fav is equal to city
-    if (item.city && item.city.toLowerCase() === fLower) return true;
-
-    // Check if fav matches any barangay
+    // 1. Direct barangay or specific area match (exact equality)
+    if (item.barangay && item.barangay.toLowerCase().trim() === fLower) return true;
+    if (item.area && item.area.toLowerCase().trim() === fLower) return true;
     if (
       item.barangays &&
-      item.barangays.some(
-        b => b.toLowerCase() === fLower || b.toLowerCase().includes(fLower) || fLower.includes(b.toLowerCase())
-      )
+      item.barangays.some(b => b.toLowerCase().trim() === fLower)
     ) {
       return true;
     }
 
-    // Check if fav matches area string or streets
-    if (item.area && item.area.toLowerCase().includes(fLower)) return true;
-    if (item.streets && item.streets.toLowerCase().includes(fLower)) return true;
+    // 2. City-level match ONLY if the user explicitly pinned a whole city
+    const isFavCity = knownCities.includes(fLower);
+    if (isFavCity && item.city && item.city.toLowerCase().trim() === fLower) {
+      return true;
+    }
 
     return false;
   });

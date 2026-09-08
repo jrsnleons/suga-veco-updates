@@ -4,7 +4,7 @@ import './globals.css';
 import { SmoothScroll } from '@/components/SmoothScroll';
 
 export const metadata: Metadata = {
-  title: 'SUGA — Cebu Power & Brownout Tracker',
+  title: 'SUGA: Cebu Power & Brownout Tracker',
   description: 'Clean, native iOS-tier power interruption schedule and live telemetry tracker for Visayan Electric (VECO) in Metro Cebu.',
   manifest: '/manifest.json',
   icons: {

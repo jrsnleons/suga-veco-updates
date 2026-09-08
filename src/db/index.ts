@@ -2,6 +2,7 @@ import { createClient, Client } from '@libsql/client';
 import path from 'path';
 import fs from 'fs';
 import { Interruption, ScrapeLog } from '@/types';
+import { computeDateLabel } from '@/lib/status-utils';
 
 const DB_DIR = path.join(process.cwd(), 'data');
 if (!process.env.TURSO_DATABASE_URL && !process.env.VERCEL) {
@@ -96,6 +97,23 @@ export async function initDbSchema(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_status ON interruptions(status);
       CREATE INDEX IF NOT EXISTS idx_is_superseded ON interruptions(is_superseded);
     `);
+
+    // Gracefully add granular barangay & timeline columns to existing schema if missing
+    const newCols = [
+      'barangay_name TEXT',
+      'origin_post_id TEXT',
+      'origin_post_url TEXT',
+      'latest_post_id TEXT',
+      'latest_post_url TEXT',
+      'update_history_json TEXT',
+      'other_barangays_json TEXT'
+    ];
+    for (const colDef of newCols) {
+      try {
+        await db.execute(`ALTER TABLE interruptions ADD COLUMN ${colDef}`);
+      } catch {}
+    }
+
     schemaInitialized = true;
   } catch (err) {
     console.warn('[DB] Schema init notice:', err);
@@ -180,6 +198,16 @@ export function mapRowToInterruption(row: any): Interruption {
     barangays = [];
   }
 
+  let updateHistory: any[] = [];
+  try {
+    updateHistory = JSON.parse(row.update_history_json || '[]');
+  } catch {}
+
+  let otherAffectedBarangays: string[] = [];
+  try {
+    otherAffectedBarangays = JSON.parse(row.other_barangays_json || '[]');
+  } catch {}
+
   const fbPostUrl = resolveRealFbPostUrl(row);
   const fbImageUrl = row.fb_image_url || REAL_FB_POSTS.DEFAULT_IMAGE;
 
@@ -189,14 +217,15 @@ export function mapRowToInterruption(row: any): Interruption {
     fbPostUrl,
     fbImageUrl,
     date: String(row.date),
-    dateLabel: String(row.date_label || row.date),
+    dateLabel: computeDateLabel(String(row.date)),
     timeStart: String(row.time_start),
     timeEnd: String(row.time_end),
     time: String(row.time_display || `${row.time_start} – ${row.time_end}`),
     type: String(row.type) as any,
     status: String(row.status) as any,
     statusLabel: String(row.status_label || row.status),
-    area: String(row.area_title),
+    area: String(row.barangay_name || row.area_title),
+    barangay: row.barangay_name ? String(row.barangay_name) : (barangays[0] || String(row.area_title)),
     city: String(row.city),
     barangays,
     streets: String(row.streets || ''),
@@ -208,6 +237,12 @@ export function mapRowToInterruption(row: any): Interruption {
     isSuperseded: Boolean(row.is_superseded),
     supersededById: row.superseded_by_id ? Number(row.superseded_by_id) : undefined,
     precedence: Number(row.precedence || 1),
+    originPostId: row.origin_post_id ? String(row.origin_post_id) : String(row.fb_post_id),
+    originPostUrl: row.origin_post_url ? String(row.origin_post_url) : fbPostUrl,
+    latestPostId: row.latest_post_id ? String(row.latest_post_id) : String(row.fb_post_id),
+    latestPostUrl: row.latest_post_url ? String(row.latest_post_url) : fbPostUrl,
+    updateHistory,
+    otherAffectedBarangays,
     createdAt: row.created_at ? String(row.created_at) : undefined,
     updatedAt: row.updated_at ? String(row.updated_at) : undefined,
   };
@@ -266,17 +301,22 @@ export async function getArchivedInterruptions(): Promise<Interruption[]> {
 export async function insertOrUpdateInterruption(data: Omit<Interruption, 'id'>): Promise<number> {
   await initDbSchema();
   const precedence = data.precedence || computePrecedenceScore(data);
+  const barangayName = data.barangay || (data.barangays && data.barangays[0]) || data.area;
 
   const res = await db.execute({
     sql: `
       INSERT INTO interruptions (
         fb_post_id, fb_post_url, fb_image_url, date, date_label, time_start, time_end, time_display,
         type, status, status_label, area_title, city, barangays_json, streets,
-        reason, fb_caption, fb_post_time, is_past, outcome, is_superseded, superseded_by_id, precedence
+        reason, fb_caption, fb_post_time, is_past, outcome, is_superseded, superseded_by_id, precedence,
+        barangay_name, origin_post_id, origin_post_url, latest_post_id, latest_post_url,
+        update_history_json, other_barangays_json
       ) VALUES (
         ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?,
+        ?, ?
       )
       ON CONFLICT(fb_post_id, date, time_start) DO UPDATE SET
         fb_post_url = COALESCE(excluded.fb_post_url, interruptions.fb_post_url),
@@ -285,6 +325,7 @@ export async function insertOrUpdateInterruption(data: Omit<Interruption, 'id'>)
         outcome = excluded.outcome,
         reason = excluded.reason,
         area_title = excluded.area_title,
+        barangay_name = excluded.barangay_name,
         city = excluded.city,
         barangays_json = excluded.barangays_json,
         streets = excluded.streets,
@@ -294,6 +335,12 @@ export async function insertOrUpdateInterruption(data: Omit<Interruption, 'id'>)
         is_superseded = excluded.is_superseded,
         superseded_by_id = excluded.superseded_by_id,
         precedence = excluded.precedence,
+        origin_post_id = COALESCE(interruptions.origin_post_id, excluded.origin_post_id),
+        origin_post_url = COALESCE(interruptions.origin_post_url, excluded.origin_post_url),
+        latest_post_id = excluded.latest_post_id,
+        latest_post_url = excluded.latest_post_url,
+        update_history_json = excluded.update_history_json,
+        other_barangays_json = excluded.other_barangays_json,
         updated_at = CURRENT_TIMESTAMP
     `,
     args: [
@@ -320,6 +367,13 @@ export async function insertOrUpdateInterruption(data: Omit<Interruption, 'id'>)
       data.isSuperseded ? 1 : 0,
       data.supersededById ? Number(data.supersededById) : null,
       precedence,
+      barangayName,
+      data.originPostId || data.fbPostId,
+      data.originPostUrl || data.fbPostUrl || null,
+      data.latestPostId || data.fbPostId,
+      data.latestPostUrl || data.fbPostUrl || null,
+      JSON.stringify(data.updateHistory || []),
+      JSON.stringify(data.otherAffectedBarangays || []),
     ]
   });
 
