@@ -11,6 +11,7 @@
     "import-live": "tsx src/db/import-live-feed.ts",
     "scrape": "tsx src/scraper/fb-scraper.ts",
     "scheduler": "tsx src/scraper/scheduler.ts",
+    "test": "tsx scripts/run-tests.ts",
     "turso:push": "tsx scripts/push_to_turso.ts"
   },
   "dependencies": {

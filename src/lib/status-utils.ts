@@ -79,6 +79,27 @@ export function formatDateYMD(date: Date = new Date()): string {
 }
 
 /**
+ * Returns the current minutes from midnight (0 - 1439) in Philippine Standard Time (Asia/Manila).
+ */
+export function getPHTMinutes(date: Date = new Date()): number {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(date);
+  let h = 0;
+  let m = 0;
+  for (const part of parts) {
+    if (part.type === 'hour') h = parseInt(part.value, 10);
+    if (part.type === 'minute') m = parseInt(part.value, 10);
+  }
+  if (h === 24) h = 0;
+  return h * 60 + m;
+}
+
+/**
  * Dynamically computes a human-friendly relative date label based on current Philippine Standard Time.
  * Returns:
  * - "Today (Sep 9)" if date matches today
@@ -191,7 +212,7 @@ export function computeLiveStatus(
   }
 
   // Today (itemDate === todayStr)
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const currentMinutes = getPHTMinutes(now);
 
   // Extract start and end minutes
   let startMinutes = parseTimeToMinutes(item.timeStart);

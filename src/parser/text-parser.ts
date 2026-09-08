@@ -77,134 +77,147 @@ export interface ParsedRawPost {
 /**
  * Extracts and resolves the target event date from raw post text and reference post timestamp.
  */
-export function extractPostDate(text: string, referenceDateStr?: string): { resolvedDate: string; dateLabel: string } {
-  const normalized = text.normalize('NFKD').toLowerCase();
+function parseExplicitDate(str: string, refDate: Date): string | null {
+  if (!str) return null;
   
-  // Base reference date (defaults to current PHT date)
+  // 1. Month Day, Year (e.g. 'September 10, 2026', 'Sept 10')
+  const mMatch = str.match(/\b(january|february|march|april|may|june|july|august|september|sept|sep|october|oct|november|nov|december|dec|enero|pebrero|marso|abril|mayo|hunyo|hulyo|agusto|setyembre|septiyembre|setiembre|oktubre|nobyembre|disyembre)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b/i);
+  if (mMatch) {
+    const monthKey = mMatch[1].toLowerCase().replace(/\.$/, '');
+    const monthNum = MONTH_MAP[monthKey];
+    const dayNum = parseInt(mMatch[2], 10);
+    const yearNum = mMatch[3] ? parseInt(mMatch[3], 10) : refDate.getFullYear();
+    if (monthNum && dayNum >= 1 && dayNum <= 31) {
+      return `${yearNum}-${String(monthNum).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+    }
+  }
+
+  // 2. Day Month Year (e.g. '10 September 2026')
+  const dayFirst = str.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(january|february|march|april|may|june|july|august|september|sept|sep|october|oct|november|nov|december|dec)\.?(?:,?\s+(\d{4}))?\b/i);
+  if (dayFirst) {
+    const dayNum = parseInt(dayFirst[1], 10);
+    const monthKey = dayFirst[2].toLowerCase().replace(/\.$/, '');
+    const monthNum = MONTH_MAP[monthKey];
+    const yearNum = dayFirst[3] ? parseInt(dayFirst[3], 10) : refDate.getFullYear();
+    if (monthNum && dayNum >= 1 && dayNum <= 31) {
+      return `${yearNum}-${String(monthNum).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+    }
+  }
+
+  // 3. Numeric ISO YYYY-MM-DD
+  const isoMatch = str.match(/\b(\d{4})[/-](\d{1,2})[/-](\d{1,2})\b/);
+  if (isoMatch) {
+    const y = parseInt(isoMatch[1], 10);
+    const m = parseInt(isoMatch[2], 10);
+    const d = parseInt(isoMatch[3], 10);
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+  }
+
+  // 4. Numeric MM/DD/YYYY or M/D/YYYY
+  const numSlash = str.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b/);
+  if (numSlash) {
+    const m = parseInt(numSlash[1], 10);
+    const d = parseInt(numSlash[2], 10);
+    const y = parseInt(numSlash[3], 10);
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extracts and resolves the authentic event date from raw post text and reference post timestamp.
+ */
+export function extractPostDate(text: string, referenceDateStr?: string): { resolvedDate: string; dateLabel: string } {
   let refDate = new Date();
   if (referenceDateStr) {
-    const parsedRef = new Date(referenceDateStr);
-    if (!isNaN(parsedRef.getTime())) {
-      refDate = parsedRef;
+    const parsedRef = new Date(referenceDateStr.includes('T') ? referenceDateStr : `${referenceDateStr}T12:00:00+08:00`);
+    if (!isNaN(parsedRef.getTime())) refDate = parsedRef;
+  }
+  const todayStr = formatDateYMD(refDate);
+  const normalized = text.normalize('NFKD').toLowerCase();
+
+  // 1. High-Priority: Check for explicit Date keyword field (e.g. 'Date: September 10, 2026', 'Petsa: Huwebes, Sep 10')
+  const explicitFieldMatch = normalized.match(/\b(?:date|petsa|scheduled on|schedule for|interruption on|maintenance on|scheduled maintenance on|set on)\s*[:\-–]?\s*([^\n\r;]+)/i);
+  if (explicitFieldMatch && explicitFieldMatch[1]) {
+    const parsed = parseExplicitDate(explicitFieldMatch[1], refDate);
+    if (parsed) {
+      return { resolvedDate: parsed, dateLabel: computeDateLabel(parsed, refDate) };
     }
   }
 
-  // 1. Check for explicit Month + Day: e.g. "September 6, 2026", "Sept 6", "Sep. 6", "Septiyembre 6"
-  const explicitMonthMatch = normalized.match(
-    /\b(january|february|march|april|may|june|july|august|september|sept|sep|october|oct|november|nov|december|dec|enero|pebrero|marso|abril|mayo|hunyo|hulyo|agusto|setyembre|septiyembre|setiembre|oktubre|nobyembre|disyembre)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b/i
-  );
-
-  if (explicitMonthMatch) {
-    const monthKey = explicitMonthMatch[1].toLowerCase().replace(/\.$/, '');
-    const monthNum = MONTH_MAP[monthKey];
-    const dayNum = parseInt(explicitMonthMatch[2], 10);
-    const yearNum = explicitMonthMatch[3] ? parseInt(explicitMonthMatch[3], 10) : refDate.getFullYear();
-
-    if (monthNum && dayNum >= 1 && dayNum <= 31) {
-      const y = yearNum;
-      const m = String(monthNum).padStart(2, '0');
-      const d = String(dayNum).padStart(2, '0');
-      const iso = `${y}-${m}-${d}`;
-      return {
-        resolvedDate: iso,
-        dateLabel: computeDateLabel(iso, refDate),
-      };
+  // 2. Check for Date Range: e.g. 'Sep 7 to Sep 13, 2026'
+  const rangeMatch = normalized.match(/\b(?:daily,?\s*)?([A-Za-z0-9\s,\.]+?)\s*(?:to|–|-|hangtod|hangtud)\s*([A-Za-z0-9\s,\.]+)/i);
+  if (rangeMatch && (normalized.includes('daily') || normalized.includes('rotational') || normalized.includes('period') || normalized.includes('interruption'))) {
+    const startCandidate = parseExplicitDate(rangeMatch[1], refDate);
+    const endCandidate = parseExplicitDate(rangeMatch[2], refDate);
+    if (startCandidate && endCandidate) {
+      if (todayStr >= startCandidate && todayStr <= endCandidate) {
+        return { resolvedDate: todayStr, dateLabel: computeDateLabel(todayStr, refDate) };
+      }
+      if (todayStr < startCandidate) {
+        return { resolvedDate: startCandidate, dateLabel: computeDateLabel(startCandidate, refDate) };
+      }
     }
   }
 
-  // 2. Check for Day + Month format: e.g. "6 September 2026", "06 Sept"
-  const dayFirstMatch = normalized.match(
-    /\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(january|february|march|april|may|june|july|august|september|sept|sep|october|oct|november|nov|december|dec|enero|pebrero|marso|abril|mayo|hunyo|hulyo|agusto|setyembre|septiyembre|setiembre|oktubre|nobyembre|disyembre)\.?(?:,?\s+(\d{4}))?\b/i
-  );
+  // 3. Strip header timestamp lines like (Posted on September 8, 2026) or (September 8, 2026) in title
+  const bodyText = normalized
+    .replace(/^.*?(?:posted on|published on|as of|update\s*#\d+)[^\n\r]*\([^\)]+\)/i, '')
+    .replace(/^.*?(?:posted on|published on|as of|update\s*#\d+)[^\n\r]+/i, '')
+    .trim();
 
-  if (dayFirstMatch) {
-    const dayNum = parseInt(dayFirstMatch[1], 10);
-    const monthKey = dayFirstMatch[2].toLowerCase().replace(/\.$/, '');
-    const monthNum = MONTH_MAP[monthKey];
-    const yearNum = dayFirstMatch[3] ? parseInt(dayFirstMatch[3], 10) : refDate.getFullYear();
-
-    if (monthNum && dayNum >= 1 && dayNum <= 31) {
-      const y = yearNum;
-      const m = String(monthNum).padStart(2, '0');
-      const d = String(dayNum).padStart(2, '0');
-      const iso = `${y}-${m}-${d}`;
-      return {
-        resolvedDate: iso,
-        dateLabel: computeDateLabel(iso, refDate),
-      };
-    }
+  const bodyParsed = parseExplicitDate(bodyText, refDate);
+  if (bodyParsed) {
+    return { resolvedDate: bodyParsed, dateLabel: computeDateLabel(bodyParsed, refDate) };
   }
 
-  // 3. Check for Relative Day Keywords in English, Cebuano, and Tagalog
-  // TOMORROW: "tomorrow", "ugma", "sa ugma", "sunod adlaw", "bukas", "ugmang adlawa"
-  if (
-    /\b(tomorrow|ugma|sa\s+ugma|sunod\s+adlaw|ugmang\s+adlawa|bukas|kinabuwasan)\b/i.test(normalized)
-  ) {
+  // 4. Any explicit date anywhere in text
+  const fullParsed = parseExplicitDate(normalized, refDate);
+  if (fullParsed) {
+    return { resolvedDate: fullParsed, dateLabel: computeDateLabel(fullParsed, refDate) };
+  }
+
+  // 5. Relative keywords (tomorrow, ugma, today, etc.)
+  if (/\b(tomorrow|ugma|sa\s+ugma|sunod\s+adlaw|ugmang\s+adlawa|bukas|kinabuwasan)\b/i.test(normalized)) {
     const target = new Date(refDate);
     target.setDate(target.getDate() + 1);
     const iso = formatDateYMD(target);
-    return {
-      resolvedDate: iso,
-      dateLabel: computeDateLabel(iso, refDate),
-    };
+    return { resolvedDate: iso, dateLabel: computeDateLabel(iso, refDate) };
   }
 
-  // TODAY: "today", "karon", "karong adlawa", "karong adlaw", "ngayong araw", "ngayon", "tonight", "karong gabii"
-  if (
-    /\b(today|karon|karong\s+adlawa|karong\s+adlaw|ngayong\s+araw|ngayon|tonight|karong\s+gabii|karong\s+buntag|karong\s+hapon)\b/i.test(normalized)
-  ) {
-    const iso = formatDateYMD(refDate);
-    return {
-      resolvedDate: iso,
-      dateLabel: computeDateLabel(iso, refDate),
-    };
+  if (/\b(today|karon|karong\s+adlawa|karong\s+adlaw|ngayong\s+araw|ngayon|tonight|karong\s+gabii)\b/i.test(normalized)) {
+    return { resolvedDate: todayStr, dateLabel: computeDateLabel(todayStr, refDate) };
   }
 
-  // YESTERDAY: "yesterday", "gahapon", "kagahapon", "kahapon"
-  if (
-    /\b(yesterday|gahapon|kagahapon|kahapon)\b/i.test(normalized)
-  ) {
+  if (/\b(yesterday|gahapon|kagahapon|kahapon)\b/i.test(normalized)) {
     const target = new Date(refDate);
     target.setDate(target.getDate() - 1);
     const iso = formatDateYMD(target);
-    return {
-      resolvedDate: iso,
-      dateLabel: computeDateLabel(iso, refDate),
-    };
+    return { resolvedDate: iso, dateLabel: computeDateLabel(iso, refDate) };
   }
 
-  // 4. Check for Weekday names: e.g. "this Saturday", "on Friday", "Sabado", "Biyernes"
-  const weekdayMatch = normalized.match(
-    /\b(?:on\s+|this\s+|karong\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday|lunes|martes|miyerkoles|miyerkules|huwebes|biyernes|sabado|domingo)\b/i
-  );
-
+  // 6. Weekday matching
+  const weekdayMatch = normalized.match(/\b(?:on\s+|this\s+|karong\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday|lunes|martes|miyerkoles|miyerkules|huwebes|biyernes|sabado|domingo)\b/i);
   if (weekdayMatch) {
     const key = weekdayMatch[1].toLowerCase();
     const targetWeekday = WEEKDAY_MAP[key];
     if (typeof targetWeekday === 'number') {
       const currentWeekday = refDate.getDay();
       let diff = targetWeekday - currentWeekday;
-      if (diff < 0) diff += 7; // next occurrence
-      if (diff === 0 && !/\b(today|karon)\b/i.test(normalized)) {
-        // If post mentions same weekday without "today", assume today
-        diff = 0;
-      }
+      if (diff < 0) diff += 7;
       const target = new Date(refDate);
       target.setDate(target.getDate() + diff);
       const iso = formatDateYMD(target);
-      return {
-        resolvedDate: iso,
-        dateLabel: computeDateLabel(iso, refDate),
-      };
+      return { resolvedDate: iso, dateLabel: computeDateLabel(iso, refDate) };
     }
   }
 
-  // Fallback to reference date (today)
-  const fallbackIso = formatDateYMD(refDate);
-  return {
-    resolvedDate: fallbackIso,
-    dateLabel: computeDateLabel(fallbackIso, refDate),
-  };
+  return { resolvedDate: todayStr, dateLabel: computeDateLabel(todayStr, refDate) };
 }
 
 export function parsePostIntoBarangayOutages(post: ParsedRawPost): Partial<Interruption>[] {
