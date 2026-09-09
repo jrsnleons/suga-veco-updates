@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Interruption } from '@/types';
 import { enrichWithLiveStatus } from '@/lib/status-utils';
-import { loadCachedOutages, saveCachedOutages, formatCachedTime } from '@/lib/offline-storage';
+import { loadCachedOutages, loadCachedOutagesFromIndexedDb, saveCachedOutages, formatCachedTime } from '@/lib/offline-storage';
 import { Header } from '@/components/Header';
 import { GridPulseView } from '@/components/GridPulseView';
 import { StatusFeed } from '@/components/StatusFeed';
@@ -107,12 +107,19 @@ export default function Home() {
         failureCountRef.current = 0;
         setFetchError(false);
       })
-      .catch(err => {
+      .catch(async err => {
         if (err instanceof DOMException && err.name === 'AbortError') return;
         console.warn('Could not fetch latest outages:', err);
         
-        // Check if cached data already exists
-        const cached = loadCachedOutages();
+        // Check if cached data already exists in localStorage or IndexedDB
+        let cached = loadCachedOutages();
+        if (!cached || !cached.data || cached.data.length === 0) {
+          cached = await loadCachedOutagesFromIndexedDb();
+          if (cached?.data && cached.data.length > 0) {
+            setOutages(cached.data.map(o => enrichWithLiveStatus(o)));
+          }
+        }
+
         if (cached && cached.data.length > 0) {
           setLastSyncedText(formatCachedTime(cached.cachedAt));
         } else {

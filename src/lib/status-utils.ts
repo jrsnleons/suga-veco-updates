@@ -78,17 +78,38 @@ export function formatDateYMD(date: Date = new Date()): string {
   return phtDateFormatter.format(date);
 }
 
+const phtShortFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  timeZone: 'Asia/Manila',
+});
+
+const phtWeekdayFormatter = new Intl.DateTimeFormat('en-US', {
+  weekday: 'long',
+  timeZone: 'Asia/Manila',
+});
+
+const phtFullFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'Asia/Manila',
+});
+
+const phtHourMinFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Asia/Manila',
+  hour: 'numeric',
+  minute: 'numeric',
+  hour12: false,
+});
+
+const dateLabelCache = new Map<string, string>();
+
 /**
  * Returns the current minutes from midnight (0 - 1439) in Philippine Standard Time (Asia/Manila).
  */
 export function getPHTMinutes(date: Date = new Date()): number {
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Manila',
-    hour: 'numeric',
-    minute: 'numeric',
-    hour12: false,
-  });
-  const parts = formatter.formatToParts(date);
+  const parts = phtHourMinFormatter.formatToParts(date);
   let h = 0;
   let m = 0;
   for (const part of parts) {
@@ -112,6 +133,9 @@ export function computeDateLabel(dateStr?: string, now: Date = new Date()): stri
   if (!dateStr) return 'Scheduled';
 
   const todayStr = formatDateYMD(now);
+  const cacheKey = `${dateStr}_${todayStr}`;
+  const cached = dateLabelCache.get(cacheKey);
+  if (cached) return cached;
 
   const tomorrowDate = new Date(now);
   tomorrowDate.setDate(tomorrowDate.getDate() + 1);
@@ -125,28 +149,30 @@ export function computeDateLabel(dateStr?: string, now: Date = new Date()): stri
     const d = new Date(dateStr + 'T00:00:00+08:00');
     if (isNaN(d.getTime())) return dateStr;
 
-    const formatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
-    const weekday = d.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Manila' });
+    const formatted = phtShortFormatter.format(d);
+    let label = '';
 
     if (dateStr === todayStr) {
-      return `Today (${formatted})`;
-    }
-    if (dateStr === tomorrowStr) {
-      return `Tomorrow (${formatted})`;
-    }
-    if (dateStr === yesterdayStr) {
-      return `Yesterday (${formatted})`;
+      label = `Today (${formatted})`;
+    } else if (dateStr === tomorrowStr) {
+      label = `Tomorrow (${formatted})`;
+    } else if (dateStr === yesterdayStr) {
+      label = `Yesterday (${formatted})`;
+    } else {
+      const currentYear = todayStr.slice(0, 4);
+      const itemYear = dateStr.slice(0, 4);
+
+      if (currentYear === itemYear) {
+        const weekday = phtWeekdayFormatter.format(d);
+        label = `${weekday} (${formatted})`;
+      } else {
+        label = phtFullFormatter.format(d);
+      }
     }
 
-    // Check if within the next 6 days
-    const currentYear = new Intl.DateTimeFormat('en-US', { year: 'numeric', timeZone: 'Asia/Manila' }).format(now);
-    const itemYear = new Intl.DateTimeFormat('en-US', { year: 'numeric', timeZone: 'Asia/Manila' }).format(d);
-
-    if (currentYear === itemYear) {
-      return `${weekday} (${formatted})`;
-    }
-
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' });
+    if (dateLabelCache.size > 200) dateLabelCache.clear();
+    dateLabelCache.set(cacheKey, label);
+    return label;
   } catch {
     return dateStr;
   }

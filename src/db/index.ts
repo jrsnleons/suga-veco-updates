@@ -96,6 +96,7 @@ export async function initDbSchema(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_is_past ON interruptions(is_past);
       CREATE INDEX IF NOT EXISTS idx_status ON interruptions(status);
       CREATE INDEX IF NOT EXISTS idx_is_superseded ON interruptions(is_superseded);
+      CREATE INDEX IF NOT EXISTS idx_active_ordering ON interruptions(is_superseded, is_past, date, time_start);
     `);
 
     // Gracefully add granular barangay & timeline columns to existing schema if missing
